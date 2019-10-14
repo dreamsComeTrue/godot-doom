@@ -24,7 +24,10 @@ class WallSegment:
 	var line_def_type
 	var sector
 	var x_offset
-	var y_offset	
+	var y_offset
+	var floor_parts
+	
+var walls = []
 
 func _ready() -> void:
 	if SurfaceMaterial == null:
@@ -52,9 +55,9 @@ func _physics_process(delta):
 		place_player_at_start()
 
 func render_level() -> void:
-	var selected_sectors = [24]#, 38, 41]
+	var selected_sectors = [14]#, 38, 41]
 		
-	var walls = []
+	walls = []
 	var sidedef_index = 0
 	for sidedef in $Level.sidedefs:
 #		if sidedef.sector in selected_sectors:
@@ -84,6 +87,7 @@ func render_level() -> void:
 					wall.ceil_texture = $Level.sectors[sidedef.sector].ceil_texture
 					wall.x_offset = sidedef.x_offset
 					wall.y_offset = sidedef.y_offset
+					wall.floor_parts = []
 
 					if l.left_sidedef == sidedef_index:						
 						for l2 in$Level.linedefs:
@@ -123,7 +127,9 @@ func render_level() -> void:
 		var points : PoolVector2Array = get_node(ear_cut_path).triangulate()
 		
 		for idx in range(0, points.size(), 3):
-			create_floor_part(points[idx], points[idx + 1], points[idx + 2], wall1.floor_height, wall1.floor_texture, wall1.light_level)
+			var id = create_floor_part(points[idx], points[idx + 1], points[idx + 2], wall1.floor_height, wall1.floor_texture, wall1.light_level)
+			wall1.floor_parts.append(id)
+			
 			create_ceiling_part(points[idx], points[idx + 1], points[idx + 2], wall1.ceil_height, wall1.ceil_texture, wall1.light_level)
 			
 	var SurfaceMaterial = SpatialMaterial.new()
@@ -146,29 +152,53 @@ func render_level() -> void:
 		
 		create_wall(vertex1, vertex2, wall)
 		
-	var material = SpatialMaterial.new()
-	material.flags_unshaded = true
-	material.flags_transparent = true
-	material.params_billboard_keep_scale = true
-	material.params_billboard_mode = SpatialMaterial.BILLBOARD_FIXED_Y
-	material.params_depth_draw_mode = SpatialMaterial.DEPTH_DRAW_ALPHA_OPAQUE_PREPASS
-	material.flags_disable_ambient_light = true
-	material.flags_do_not_receive_shadows = true
-	
 	for thing in $Level.things:
 		var picture = "SPOSD1"
 		
 		match thing.type:
+			9:
+				picture = "SPOSA1"
+			10:
+				picture = "SPOSU0"
+			12:
+				picture = "SPOSU0"
+			15:
+				picture = "PLAYN0"
+			48:
+				picture = "ELECA0"
+			2002:
+				picture = "MGUNA0"				
+			2003:
+				picture = "LAUNA0"
+			2007:
+				picture = "CLIPA0"
 			2012:
 				picture = "STIMA0"
 			2014:
 				picture = "BON1A0"
 			2015:
 				picture = "BON2A0"
+			2018:
+				picture = "ARM1A0"
+			2019:
+				picture = "ARM2A0"
+			2028:
+				picture = "COLUA0"
 			2035:
 				picture = "BAR1A0"
-		
-		create_sprite3d(thing.x, thing.y, picture, material)
+			2046:
+				picture = "BROKA0"
+			2048:
+				picture = "AMMOA0"
+			2049:
+				picture = "SBOXA0"		
+			3001:
+				picture = "TROOA1"
+			3004:
+				picture = "POSSA1"		
+				
+		if thing.type != 11: # deathmatch start
+			create_sprite3d(thing.x, thing.y, picture)
 		
 func sort_polys(walls):
 	var copy = [] + walls
@@ -223,10 +253,37 @@ func sort_polys(walls):
 		
 	return sorted		
 	
-func create_sprite3d(x, y, picture, material):
+func create_sprite3d(x, y, picture):
+	var material = SpatialMaterial.new()
+	material.flags_unshaded = true
+	material.flags_transparent = true
+	material.params_billboard_keep_scale = true
+	material.params_billboard_mode = SpatialMaterial.BILLBOARD_FIXED_Y
+	material.params_depth_draw_mode = SpatialMaterial.DEPTH_DRAW_ALPHA_OPAQUE_PREPASS
+	material.flags_disable_ambient_light = true
+	material.flags_do_not_receive_shadows = true
+
+	var space_state = get_world().direct_space_state
+	var raycast = space_state.intersect_ray(Vector3(x, -10000, -y), Vector3(x, 10000, -y))
+	var up_posiiton = Vector3.ONE
+	
+	if raycast:
+		up_posiiton = raycast.position
+		
+		for wall in walls:
+			if wall.floor_parts.find(raycast.collider.get_instance_id()) >= 0:
+				var sector_color = Color.white * (wall.light_level / 255.0)
+				material.albedo_color.r = sector_color.r
+				material.albedo_color.g = sector_color.g
+				material.albedo_color.b = sector_color.b
+				print(wall.light_level)
+				break
+
 	var sprite3d = Sprite3D.new()
-	sprite3d.translation = Vector3(x, 1, -y)
-	sprite3d.texture = $Level.get_picture(picture).image_texture
+	var pic = $Level.get_picture(picture)
+	sprite3d.offset.y = pic.height * 0.5
+	sprite3d.texture = pic.image_texture
+	sprite3d.translation = Vector3(x, up_posiiton.y, -y)
 	sprite3d.material_override = material
 	sprite3d.scale = Vector3(6, 6, 6)
 	add_child(sprite3d)
@@ -236,7 +293,7 @@ func create_wall(start_vertex, end_vertex, wall):
 		return
 		
 	if wall.lower_texture != "-":
-		create_wall_part(start_vertex, end_vertex, $Level.min_height * level_scale, wall.floor_height, wall.floor_texture, wall)
+		create_wall_part(start_vertex, end_vertex, $Level.min_height * level_scale, wall.floor_height, wall.lower_texture, wall)
 	
 	if wall.middle_texture != "-":
 		create_wall_part(start_vertex, end_vertex, wall.floor_height, wall.ceil_height, wall.middle_texture, wall)
@@ -255,10 +312,10 @@ func create_wall_part(start_vertex, end_vertex, height_begin, height_end, pictur
 	wall_material.params_alpha_scissor_threshold = 1
 	wall_material.params_use_alpha_scissor = true
 		
-#	var sector_color = Color.white * (wall.light_level / 255.0)
-#	wall_material.albedo_color.r = sector_color.r
-#	wall_material.albedo_color.g = sector_color.g
-#	wall_material.albedo_color.b = sector_color.b
+	var sector_color = Color.white * (wall.light_level / 255.0)
+	wall_material.albedo_color.r = sector_color.r
+	wall_material.albedo_color.g = sector_color.g
+	wall_material.albedo_color.b = sector_color.b
 	wall_material.albedo_texture = $Level.get_picture(picture).image_texture	
 
 	var surface_tool = SurfaceTool.new();
@@ -324,6 +381,8 @@ func create_floor_part(v1, v2, v3, height, picture, light_level):
 	mesh_instance.material_override = material
 	mesh_instance.create_convex_collision()
 	add_child(mesh_instance)
+	
+	return mesh_instance.get_child(0).get_instance_id()
 	
 func create_ceiling_part(v1, v2, v3, height, picture, light_level):
 	var material = SpatialMaterial.new()
