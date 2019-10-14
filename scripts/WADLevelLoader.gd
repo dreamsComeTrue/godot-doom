@@ -13,6 +13,8 @@ var things = []
 var linedefs = []
 var sidedefs = []
 var sectors = []
+var pictures =  []
+var palettes = []
 
 func decode_32_as_string(file):
 	var c1 = char(file.get_8())
@@ -78,26 +80,6 @@ class Segment:
 	var direction
 	var offset
 
-class SubSector:
-	var seg_count
-	var seg_num
-
-class SectorNode:
-	var x
-	var y
-	var dx
-	var dy
-	var y_upper_right
-	var y_lower_right
-	var x_lower_right
-	var x_upper_right
-	var y_upper_left
-	var y_lower_left
-	var x_lower_left
-	var x_upper_left
-	var node_right
-	var node_left
-
 class Sector:
 	var floor_height
 	var ceil_height
@@ -106,6 +88,12 @@ class Sector:
 	var light_level
 	var special
 	var tag
+	
+class Picture:
+	var name
+	var width
+	var height
+	var image_texture
 
 func read_lump(file):
 	var lump = Lump.new()
@@ -121,6 +109,29 @@ func to_short(a, b):
 # combine eight bytes to string
 func combine_8_bytes_to_string(c1, c2, c3, c4, c5, c6, c7, c8):
 	return char(c1) + char(c2) + char(c3) + char(c4) + char(c5) + char(c6) + char(c7) + char(c8)
+	
+func add_picture(name, width, height, image_texture):
+	var picture = Picture.new()
+	picture.name = name
+	picture.width = width
+	picture.height = height
+	picture.image_texture = image_texture
+	
+	pictures.append(picture)
+	
+func get_picture(name):
+	for pic in pictures:
+		if pic.name == name:
+			return pic
+			
+	for pic in pictures:
+		if pic.name == "DUMMY":
+			return pic	
+			
+func _ready() -> void:
+	var image_texture = load("res://gfx/STARTAN3.png")
+	
+	add_picture("DUMMY", 64, 64, image_texture)
 
 func load_wad(wad_path, level_name, level_scale):
 	vertexes = []
@@ -148,7 +159,7 @@ func load_wad(wad_path, level_name, level_scale):
 	print(wad_path," is ", header.type)
 	
 	if PrintDebugInfo:
-		print("READING LUMPS...")
+		print("READING LUMPS... " + str(header.lumpNum))
 	
 	var lump_mapname
 	var lump_things
@@ -156,45 +167,143 @@ func load_wad(wad_path, level_name, level_scale):
 	var lump_sidedefs
 	var lump_vertexes
 	var lump_segs
-	var lump_subsectors
-	var lump_nodes
 	var lump_sectors
 	var lump_reject
-	var lump_blockmap
 	
 	var first = true
 	var breakAfter = false
+	var map_look = true
 	file.seek(header.dirOffset)
+	
+	var sprite_look = false
+	var flat_look = false
+	
 	for i in range(header.lumpNum):
 		var lump = read_lump(file)
-		if first:
-			lump_mapname = lump
-			first = false
-		match lump.name:
-			"THINGS":
-				lump_things = lump
-			"LINEDEFS":
-				lump_linedefs = lump
-			"SIDEDEFS":
-				lump_sidedefs = lump
-			"VERTEXES":
-				lump_vertexes = lump
-			"SEGS":
-				lump_segs = lump
-			"SSECTORS":
-				lump_subsectors = lump
-			"NODES":
-				lump_nodes = lump
-			"SECTORS":
-				lump_sectors = lump
-			"REJECT":
-				lump_reject = lump
-			"BLOCKMAP":
-				lump_blockmap = lump
-				if breakAfter:
-					break
-			level_name:
-				breakAfter = true
+		
+		if lump.name == "PLAYPAL":
+			var pos = file.get_position()
+			file.seek(lump.offset)
+			for i in range(0, lump.size / 256, 256):
+				var palette = []
+
+				for i in range(0, 256):
+					palette.append(Color(file.get_8() / 255.0, file.get_8() / 255.0, file.get_8() / 255.0))
+
+				palettes.append(palette)
+			
+			file.seek(pos)			
+		
+		if lump.name == "S_START" || lump.name == "P1_START":
+			sprite_look = true
+			continue
+			
+		if lump.name == "S_END" || lump.name == "P1_END":
+			sprite_look = false
+			
+		if lump.name == "F1_START":
+			flat_look = true
+			continue
+			
+		if lump.name == "F1_END":
+			flat_look = false			
+			
+		if sprite_look:
+			var raw_image = Image.new()
+			var pos = file.get_position()
+			
+			file.seek(lump.offset)
+			var width = file.get_16()
+			var height = file.get_16()
+			var leftoffset = file.get_16()
+			var topoffset = file.get_16()
+
+			raw_image.create(width, height, false, Image.FORMAT_RGBA8)
+			raw_image.lock()
+			
+			var col_array = []
+			
+			for i in range(0, width):					
+				col_array.append(file.get_32())
+				
+			for i in range(0, width):
+				file.seek(lump.offset + col_array[i])
+				
+				var loop = true
+				
+				while loop:
+					var row_start = file.get_8()
+					
+					if row_start == 255:
+						break
+						
+					var pixel_count = file.get_8()
+					var dummy = file.get_8()
+					
+					for j in range(0, pixel_count):
+						var pixel_index = file.get_8()
+						raw_image.set_pixel(i, j + row_start, palettes[0][pixel_index])
+						
+					var second_dummy = file.get_8()
+			
+			raw_image.unlock()
+
+			var imageTexture = ImageTexture.new()
+			imageTexture.create_from_image(raw_image)
+			
+			add_picture(lump.name, width, height, imageTexture)
+			
+			file.seek(pos)
+			
+		if flat_look:
+			var raw_image = Image.new()
+			var pos = file.get_position()
+			
+			file.seek(lump.offset)
+
+			raw_image.create(64, 64, false, Image.FORMAT_RGBA8)
+			raw_image.lock()
+			
+			var col_array = []
+			
+			for i in range(0, 64 * 64):
+				var pixel_index = file.get_8()
+				raw_image.set_pixel(i % 64, i / 64, palettes[0][pixel_index])
+			
+			raw_image.unlock()
+
+			var imageTexture = ImageTexture.new()
+			imageTexture.create_from_image(raw_image)
+			
+			add_picture(lump.name, 64, 64, imageTexture)
+			
+			file.seek(pos)			
+		
+		if map_look:
+			if first:
+				lump_mapname = lump
+				first = false
+			match lump.name:
+				"THINGS":
+					lump_things = lump
+				"LINEDEFS":
+					lump_linedefs = lump
+				"SIDEDEFS":
+					lump_sidedefs = lump
+				"VERTEXES":
+					lump_vertexes = lump
+				"SEGS":
+					lump_segs = lump
+				"SECTORS":
+					lump_sectors = lump
+				"REJECT":
+					lump_reject = lump
+				"BLOCKMAP":
+					if breakAfter:
+						map_look = false
+				level_name:
+					breakAfter = true
+					
 	if PrintDebugInfo:
 		print("Internal map name: " + lump_mapname.name)
 	
@@ -260,44 +369,6 @@ func load_wad(wad_path, level_name, level_scale):
 		vertex.y = float(y)	
 		vertexes.push_back(vertex)
 		i+=4
-	
-	if PrintDebugInfo:
-		print("READING SUB-SECTORS...")
-	file.seek(lump_subsectors.offset)
-	var sub_sectors = []
-	buffer = file.get_buffer(lump_subsectors.size)
-	i = 0
-	while i < buffer.size():
-		var subsector = SubSector.new()
-		subsector.seg_count = to_short(buffer[i],buffer[i+1])
-		subsector.seg_num = to_short(buffer[i+2],buffer[i+3])
-		sub_sectors.push_back(subsector)
-		i+=4
-	
-	if PrintDebugInfo:
-		print("READING NODES...")
-	file.seek(lump_nodes.offset)
-	var nodes = []
-	buffer = file.get_buffer(lump_nodes.size)
-	i = 0
-	while i < buffer.size():
-		var node = SectorNode.new()
-		node.x = to_short(buffer[i],buffer[i+1])
-		node.y = to_short(buffer[i+2],buffer[i+3])
-		node.dx = to_short(buffer[i+4],buffer[i+5])
-		node.dy = to_short(buffer[i+6],buffer[i+7])		
-		node.y_upper_right = to_short(buffer[i+8],buffer[i+9])
-		node.y_lower_right = to_short(buffer[i+10],buffer[i+11])
-		node.x_lower_right = to_short(buffer[i+12],buffer[i+13])
-		node.x_upper_right = to_short(buffer[i+14],buffer[i+15])
-		node.y_upper_left = to_short(buffer[i+16],buffer[i+17])
-		node.y_lower_left = to_short(buffer[i+18],buffer[i+19])
-		node.x_lower_left = to_short(buffer[i+20],buffer[i+21])
-		node.x_upper_left = to_short(buffer[i+22],buffer[i+23])
-		node.node_right = to_short(buffer[i+24],buffer[i+25])
-		node.node_left = to_short(buffer[i+26],buffer[i+27])
-		nodes.push_back(node)
-		i+=28
 	
 	if PrintDebugInfo:
 		print("READING SECTORS...")

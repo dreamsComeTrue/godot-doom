@@ -9,6 +9,8 @@
 [sub_resource type="BoxShape" id=1]
 
 [sub_resource type="SpatialMaterial" id=2]
+flags_unshaded = true
+flags_do_not_receive_shadows = true
 albedo_texture = ExtResource( 5 )
 uv1_scale = Vector3( 1, -1, 1 )
 
@@ -17,7 +19,6 @@ extents = Vector3( 200000, 0.1, 200000 )
 
 [node name="Spatial" type="Spatial"]
 script = ExtResource( 1 )
-level_name = "E1M5"
 level_scale = 0.07
 ear_cut_path = NodePath("EarCut")
 player_path = NodePath("Player")
@@ -45,7 +46,7 @@ script = ExtResource( 3 )
 script = ExtResource( 4 )
 
 [node name="SkyBox" type="CSGPolygon" parent="."]
-transform = Transform( 40, 0, 0, 0, 40, 0, 0, 0, 40, 0, 0, 0 )
+transform = Transform( 80, 0, 0, 0, 80, 0, 0, 0, 80, 0, 0, 0 )
 calculate_tangents = false
 invert_faces = true
 mode = 1

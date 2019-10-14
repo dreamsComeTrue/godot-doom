@@ -11,7 +11,7 @@ var dir = Vector3()
 
 const ACCEL = 30
 const DEACCEL= 30
-const MAX_SLOPE_ANGLE = 20
+const MAX_SLOPE_ANGLE = 40
 
 var camera
 var rotation_helper
