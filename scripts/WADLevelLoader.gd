@@ -15,6 +15,7 @@ var sidedefs = []
 var sectors = []
 var pictures =  []
 var palettes = []
+var pnames = []
 
 func decode_32_as_string(file):
 	var c1 = char(file.get_8())
@@ -93,6 +94,7 @@ class Picture:
 	var name
 	var width
 	var height
+	var image
 	var image_texture
 
 func read_lump(file):
@@ -110,11 +112,12 @@ func to_short(a, b):
 func combine_8_bytes_to_string(c1, c2, c3, c4, c5, c6, c7, c8):
 	return char(c1) + char(c2) + char(c3) + char(c4) + char(c5) + char(c6) + char(c7) + char(c8)
 	
-func add_picture(name, width, height, image_texture):
+func add_picture(name, width, height, image, image_texture):
 	var picture = Picture.new()
 	picture.name = name
 	picture.width = width
 	picture.height = height
+	picture.image = image
 	picture.image_texture = image_texture
 	
 	pictures.append(picture)
@@ -131,7 +134,7 @@ func get_picture(name):
 func _ready() -> void:
 	var image_texture = load("res://gfx/STARTAN3.png")
 	
-	add_picture("DUMMY", 64, 64, image_texture)
+	add_picture("DUMMY", 64, 64, null, image_texture)
 
 func load_wad(wad_path, level_name, level_scale):
 	vertexes = []
@@ -169,6 +172,7 @@ func load_wad(wad_path, level_name, level_scale):
 	var lump_segs
 	var lump_sectors
 	var lump_reject
+	var lump_texture
 	
 	var first = true
 	var breakAfter = false
@@ -193,7 +197,18 @@ func load_wad(wad_path, level_name, level_scale):
 				palettes.append(palette)
 			
 			file.seek(pos)			
-		
+			
+		if lump.name == "PNAMES":
+			var pos = file.get_position()
+			file.seek(lump.offset)
+			
+			var nummappatches = file.get_32()
+			for i in range(0, nummappatches):
+				var name = file.get_buffer(8)
+				pnames.append(combine_8_bytes_to_string(name[0], name[1], name[2], name[3], name[4], name[5], name[6], name[7]))
+			
+			file.seek(pos)		
+			
 		if lump.name == "S_START" || lump.name == "P1_START":
 			sprite_look = true
 			continue
@@ -207,6 +222,9 @@ func load_wad(wad_path, level_name, level_scale):
 			
 		if lump.name == "F1_END":
 			flat_look = false			
+			
+		if lump.name == "TEXTURE1":
+			lump_texture = lump
 			
 		if sprite_look:
 			var raw_image = Image.new()
@@ -249,9 +267,9 @@ func load_wad(wad_path, level_name, level_scale):
 			raw_image.unlock()
 
 			var imageTexture = ImageTexture.new()
-			imageTexture.create_from_image(raw_image)
+			imageTexture.create_from_image(raw_image, 1 | 2)
 			
-			add_picture(lump.name, width, height, imageTexture)
+			add_picture(lump.name, width, height, raw_image, imageTexture)
 			
 			file.seek(pos)
 			
@@ -273,9 +291,9 @@ func load_wad(wad_path, level_name, level_scale):
 			raw_image.unlock()
 
 			var imageTexture = ImageTexture.new()
-			imageTexture.create_from_image(raw_image)
+			imageTexture.create_from_image(raw_image, 1 | 2)
 			
-			add_picture(lump.name, 64, 64, imageTexture)
+			add_picture(lump.name, 64, 64, raw_image, imageTexture)
 			
 			file.seek(pos)			
 		
@@ -393,5 +411,44 @@ func load_wad(wad_path, level_name, level_scale):
 			max_height = sector.ceil_height
 
 		i+=26
+		
+	if PrintDebugInfo:
+		print("READING TEXTURES...")
+	file.seek(lump_texture.offset)
+	
+	var numtextures = file.get_32()
+	var offsets = []
+	
+	for i in range(0, numtextures):
+		offsets.append(file.get_32())	
+
+	for i in range(0, numtextures):
+		file.seek(lump_texture.offset + offsets[i])
+
+		var name = file.get_buffer(8)
+		name = combine_8_bytes_to_string(name[0], name[1], name[2], name[3], name[4], name[5], name[6], name[7])
+		var masked = file.get_32()
+		var width = file.get_16()
+		var height = file.get_16()
+		var columndirectory = file.get_32()
+		var patchcount = file.get_16()
+		
+		var raw_image = Image.new()
+		raw_image.create(width, height, false, Image.FORMAT_RGBA8)
+
+		for j in range(0, patchcount):
+			var originx = file.get_16()
+			var originy = file.get_16()
+			var patch = file.get_16()
+			var stepdir = file.get_16()
+			var colormap = file.get_16()
+			
+			var patch_pic = get_picture(pnames[patch])
+			raw_image.blit_rect(patch_pic.image, Rect2(0, 0, patch_pic.width, patch_pic.height), Vector2(originx, originy))
+			
+		var imageTexture = ImageTexture.new()
+		imageTexture.create_from_image(raw_image, 1 | 2)			
+		add_picture(name, width, height, raw_image, imageTexture)
+				
 	file.close()
 	

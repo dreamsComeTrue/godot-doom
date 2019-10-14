@@ -23,6 +23,8 @@ class WallSegment:
 	var middle_texture
 	var line_def_type
 	var sector
+	var x_offset
+	var y_offset	
 
 func _ready() -> void:
 	if SurfaceMaterial == null:
@@ -80,6 +82,8 @@ func render_level() -> void:
 					wall.light_level = $Level.sectors[sidedef.sector].light_level
 					wall.floor_texture = $Level.sectors[sidedef.sector].floor_texture
 					wall.ceil_texture = $Level.sectors[sidedef.sector].ceil_texture
+					wall.x_offset = sidedef.x_offset
+					wall.y_offset = sidedef.y_offset
 
 					if l.left_sidedef == sidedef_index:						
 						for l2 in$Level.linedefs:
@@ -145,7 +149,11 @@ func render_level() -> void:
 	var material = SpatialMaterial.new()
 	material.flags_unshaded = true
 	material.flags_transparent = true
+	material.params_billboard_keep_scale = true
 	material.params_billboard_mode = SpatialMaterial.BILLBOARD_FIXED_Y
+	material.params_depth_draw_mode = SpatialMaterial.DEPTH_DRAW_ALPHA_OPAQUE_PREPASS
+	material.flags_disable_ambient_light = true
+	material.flags_do_not_receive_shadows = true
 	
 	for thing in $Level.things:
 		var picture = "SPOSD1"
@@ -157,6 +165,8 @@ func render_level() -> void:
 				picture = "BON1A0"
 			2015:
 				picture = "BON2A0"
+			2035:
+				picture = "BAR1A0"
 		
 		create_sprite3d(thing.x, thing.y, picture, material)
 		
@@ -174,7 +184,6 @@ func sort_polys(walls):
 		
 		sub_array.append(Vector2(vertex1.x, vertex1.y))
 		sub_array.append(Vector2(vertex2.x, vertex2.y))
-#		print("> " + str(element.start_vertex) + " " + str(element.end_vertex))
 		
 		var last_vertex = vertex2
 	
@@ -192,7 +201,6 @@ func sort_polys(walls):
 				if tmp1.x == last_vertex.x and tmp1.y == last_vertex.y:
 					sub_array.append(Vector2(tmp1.x, tmp1.y))
 					sub_array.append(Vector2(tmp2.x, tmp2.y))
-#					print("A " + str(element_tmp.start_vertex) + " " + str(element_tmp.end_vertex))
 					copy.remove(i)
 					
 					last_vertex = tmp2
@@ -202,7 +210,6 @@ func sort_polys(walls):
 				if tmp2.x == last_vertex.x and tmp2.y == last_vertex.y:
 					sub_array.append(Vector2(tmp2.x, tmp2.y))
 					sub_array.append(Vector2(tmp1.x, tmp1.y))
-#					print("B " + str(element_tmp.end_vertex) + " " + str(element_tmp.start_vertex))
 					copy.remove(i)
 					
 					last_vertex = tmp1
@@ -218,9 +225,10 @@ func sort_polys(walls):
 	
 func create_sprite3d(x, y, picture, material):
 	var sprite3d = Sprite3D.new()
-	sprite3d.translation = Vector3(x, 0, -y)
+	sprite3d.translation = Vector3(x, 1, -y)
 	sprite3d.texture = $Level.get_picture(picture).image_texture
 	sprite3d.material_override = material
+	sprite3d.scale = Vector3(6, 6, 6)
 	add_child(sprite3d)
 	
 func create_wall(start_vertex, end_vertex, wall):
@@ -228,38 +236,48 @@ func create_wall(start_vertex, end_vertex, wall):
 		return
 		
 	if wall.lower_texture != "-":
-		create_wall_part(start_vertex, end_vertex, $Level.min_height * level_scale, wall.floor_height, wall.light_level, wall.floor_texture)
+		create_wall_part(start_vertex, end_vertex, $Level.min_height * level_scale, wall.floor_height, wall.floor_texture, wall)
 	
 	if wall.middle_texture != "-":
-		create_wall_part(start_vertex, end_vertex, wall.floor_height, wall.ceil_height, wall.light_level, wall.middle_texture)
+		create_wall_part(start_vertex, end_vertex, wall.floor_height, wall.ceil_height, wall.middle_texture, wall)
 	
 	if wall.upper_texture != "-":
-		create_wall_part(start_vertex, end_vertex, wall.ceil_height, $Level.max_height * level_scale, wall.light_level, wall.upper_texture)
+		create_wall_part(start_vertex, end_vertex, wall.ceil_height, $Level.max_height * level_scale, wall.upper_texture, wall)
 	
-func create_wall_part(start_vertex, end_vertex, height_begin, height_end, light_level, picture):
+func create_wall_part(start_vertex, end_vertex, height_begin, height_end, picture, wall):
 	var wall_material = SpatialMaterial.new()
 	wall_material.flags_unshaded = true
+	wall_material.flags_transparent = true	
 	wall_material.params_cull_mode = SpatialMaterial.CULL_DISABLED
-	wall_material.albedo_color = Color.white * (light_level / 255.0)
+	wall_material.params_depth_draw_mode = SpatialMaterial.DEPTH_DRAW_ALWAYS
+	wall_material.flags_disable_ambient_light = true
+	wall_material.flags_do_not_receive_shadows = true
+	wall_material.params_alpha_scissor_threshold = 1
+	wall_material.params_use_alpha_scissor = true
+		
+#	var sector_color = Color.white * (wall.light_level / 255.0)
+#	wall_material.albedo_color.r = sector_color.r
+#	wall_material.albedo_color.g = sector_color.g
+#	wall_material.albedo_color.b = sector_color.b
 	wall_material.albedo_texture = $Level.get_picture(picture).image_texture	
 
 	var surface_tool = SurfaceTool.new();
- 
 	surface_tool.begin(Mesh.PRIMITIVE_TRIANGLES);
 	
 	var texture_width = wall_material.albedo_texture.get_width()
+	var texture_height = wall_material.albedo_texture.get_height()
 	var point_start = Vector3(start_vertex.x, height_end, -start_vertex.y)
 	var point_end = Vector3(end_vertex.x, height_end, -end_vertex.y)
-	var size_x = point_start.distance_to(point_end) / 4
-	var size_y = (height_end - height_begin) / 4
+	var size_x = point_start.distance_to(point_end) / level_scale / texture_width
+	var size_y = (height_end - height_begin) / level_scale / texture_height
  
-	surface_tool.add_uv(Vector2(0, 0))
+	surface_tool.add_uv(Vector2(wall.x_offset, wall.y_offset))
 	surface_tool.add_vertex(Vector3(start_vertex.x, height_end, -start_vertex.y))
-	surface_tool.add_uv(Vector2(0, size_y))
+	surface_tool.add_uv(Vector2(wall.x_offset, size_y + wall.y_offset))
 	surface_tool.add_vertex(Vector3(start_vertex.x, height_begin, -start_vertex.y))
-	surface_tool.add_uv(Vector2(size_x, size_y))
+	surface_tool.add_uv(Vector2(size_x + wall.x_offset, size_y + wall.y_offset))
 	surface_tool.add_vertex(Vector3(end_vertex.x, height_begin, -end_vertex.y))
-	surface_tool.add_uv(Vector2(size_x, 0))
+	surface_tool.add_uv(Vector2(size_x + wall.x_offset, wall.y_offset))
 	surface_tool.add_vertex(Vector3(end_vertex.x, height_end, -end_vertex.y))
  
 	surface_tool.add_index(0)

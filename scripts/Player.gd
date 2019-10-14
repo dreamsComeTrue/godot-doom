@@ -9,8 +9,8 @@ const JUMP_SPEED = 12
 
 var dir = Vector3()
 
-const ACCEL = 30
-const DEACCEL= 30
+const ACCEL = 25
+const DEACCEL= 40
 const MAX_SLOPE_ANGLE = 40
 
 var camera
