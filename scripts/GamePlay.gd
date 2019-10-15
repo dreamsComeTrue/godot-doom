@@ -26,6 +26,8 @@ class WallSegment:
 	var x_offset
 	var y_offset
 	var floor_parts
+	var lower_unpegged 
+	var upper_unpegged
 	
 var walls = []
 
@@ -96,6 +98,8 @@ func render_level() -> void:
 					wall.x_offset = sidedef.x_offset
 					wall.y_offset = sidedef.y_offset
 					wall.floor_parts = []
+					wall.lower_unpegged = l.flags & 0x0008
+					wall.upper_unpegged = l.flags & 0x0010
 
 					if l.left_sidedef == sidedef_index:						
 						for l2 in$Level.linedefs:
@@ -162,59 +166,10 @@ func render_level() -> void:
 		create_wall(vertex1, vertex2, wall)
 		
 	for thing in $Level.things:
-		var picture = "SPOSD1"
-		
-		match thing.type:
-			9:
-				picture = "SPOSA1"
-			10:
-				picture = "SPOSU0"
-			12:
-				picture = "SPOSU0"
-			15:
-				picture = "PLAYN0"
-			48:
-				picture = "ELECA0"
-			2001:
-				picture = "SHOTA0"				
-			2002:
-				picture = "MGUNA0"				
-			2003:
-				picture = "LAUNA0"
-			2007:
-				picture = "CLIPA0"
-			2008:
-				picture = "SHELA0"
-			2011:
-				picture = "STIMA0"
-			2012:
-				picture = "MEDIA0"
-			2014:
-				picture = "BON1A0"
-			2015:
-				picture = "BON2A0"
-			2018:
-				picture = "ARM1A0"
-			2019:
-				picture = "ARM2A0"
-			2028:
-				picture = "COLUA0"
-			2035:
-				picture = "BAR1A0"
-			2046:
-				picture = "BROKA0"
-			2048:
-				picture = "AMMOA0"
-			2049:
-				picture = "SBOXA0"		
-			3001:
-				picture = "TROOA1"
-			3004:
-				picture = "POSSA1"		
-				
 		if thing.type != 11: # deathmatch start
-			create_sprite3d(thing.x, thing.y, picture)
-		
+			var thing_obj = load("res://scripts/Thing.gd").new(thing.type, Vector2(thing.x, thing.y))
+			add_child(thing_obj)
+			
 func sort_polys(walls):
 	var copy = [] + walls
 	var sorted = []
@@ -268,41 +223,6 @@ func sort_polys(walls):
 		
 	return sorted		
 	
-func create_sprite3d(x, y, picture):
-	var material = SpatialMaterial.new()
-	material.flags_unshaded = true
-	material.flags_transparent = true
-	material.params_billboard_keep_scale = true
-	material.params_billboard_mode = SpatialMaterial.BILLBOARD_FIXED_Y
-	material.params_depth_draw_mode = SpatialMaterial.DEPTH_DRAW_ALPHA_OPAQUE_PREPASS
-	material.flags_disable_ambient_light = true
-	material.flags_do_not_receive_shadows = true
-
-	var space_state = get_world().direct_space_state
-	var raycast = space_state.intersect_ray(Vector3(x, -10000, -y), Vector3(x, 10000, -y))
-	var up_posiiton = Vector3.ONE
-	
-	if raycast:
-		up_posiiton = raycast.position
-		
-		for wall in walls:
-			if wall.floor_parts.find(raycast.collider.get_instance_id()) >= 0:
-				var sector_color = Color.white * (wall.light_level / 255.0)
-				material.albedo_color.r = sector_color.r
-				material.albedo_color.g = sector_color.g
-				material.albedo_color.b = sector_color.b
-				print(wall.light_level)
-				break
-
-	var sprite3d = Sprite3D.new()
-	var pic = $Level.get_picture(picture)
-	sprite3d.offset.y = pic.height * 0.5
-	sprite3d.texture = pic.image_texture
-	sprite3d.translation = Vector3(x, up_posiiton.y, -y)
-	sprite3d.material_override = material
-	sprite3d.scale = Vector3(6, 6, 6)
-	add_child(sprite3d)
-	
 func create_wall(start_vertex, end_vertex, wall):
 	if wall.line_def_type == 1:
 		return
@@ -342,14 +262,20 @@ func create_wall_part(start_vertex, end_vertex, height_begin, height_end, pictur
 	var point_end = Vector3(end_vertex.x, height_end, -end_vertex.y)
 	var size_x = point_start.distance_to(point_end) / level_scale / texture_width
 	var size_y = (height_end - height_begin) / level_scale / texture_height
+	var top_offset = 0
+	
+	if wall.lower_unpegged:
+		top_offset = 1.4
+	elif wall.upper_unpegged:
+		top_offset = -1.5
  
-	surface_tool.add_uv(Vector2(wall.x_offset, wall.y_offset))
+	surface_tool.add_uv(Vector2(wall.x_offset, wall.y_offset + top_offset))
 	surface_tool.add_vertex(Vector3(start_vertex.x, height_end, -start_vertex.y))
-	surface_tool.add_uv(Vector2(wall.x_offset, size_y + wall.y_offset))
+	surface_tool.add_uv(Vector2(wall.x_offset, size_y + wall.y_offset + top_offset))
 	surface_tool.add_vertex(Vector3(start_vertex.x, height_begin, -start_vertex.y))
-	surface_tool.add_uv(Vector2(size_x + wall.x_offset, size_y + wall.y_offset))
+	surface_tool.add_uv(Vector2(size_x + wall.x_offset, size_y + wall.y_offset + top_offset))
 	surface_tool.add_vertex(Vector3(end_vertex.x, height_begin, -end_vertex.y))
-	surface_tool.add_uv(Vector2(size_x + wall.x_offset, wall.y_offset))
+	surface_tool.add_uv(Vector2(size_x + wall.x_offset, wall.y_offset + top_offset))
 	surface_tool.add_vertex(Vector3(end_vertex.x, height_end, -end_vertex.y))
  
 	surface_tool.add_index(0)

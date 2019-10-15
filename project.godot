@@ -15,7 +15,7 @@ _global_script_class_icons={
 
 [application]
 
-config/name="godoom"
+config/name="GoDoom !"
 run/main_scene="res://scenes/GamePlay.tscn"
 boot_splash/image="res://gfx/doomguy.png"
 config/icon="res://gfx/doomguy.png"

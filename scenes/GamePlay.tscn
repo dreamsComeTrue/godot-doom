@@ -28,6 +28,7 @@ albedo_texture = ExtResource( 6 )
 
 [node name="Spatial" type="Spatial"]
 script = ExtResource( 1 )
+level_name = "E1M5"
 ear_cut_path = NodePath("EarCut")
 player_path = NodePath("Player")
 
