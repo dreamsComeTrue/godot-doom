@@ -3,8 +3,8 @@
 [ext_resource path="res://scripts/Player.gd" type="Script" id=1]
 
 [sub_resource type="CapsuleShape" id=1]
-radius = 2.34806
-height = 0.002
+radius = 1.46008
+height = 0.108001
 
 [sub_resource type="PanoramaSky" id=2]
 

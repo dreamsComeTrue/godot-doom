@@ -181,6 +181,7 @@ func load_wad(wad_path, level_name, level_scale):
 	
 	var sprite_look = false
 	var flat_look = false
+	var gui_look = false
 	
 	for i in range(header.lumpNum):
 		var lump = read_lump(file)
@@ -208,8 +209,13 @@ func load_wad(wad_path, level_name, level_scale):
 				pnames.append(combine_8_bytes_to_string(name[0], name[1], name[2], name[3], name[4], name[5], name[6], name[7]))
 			
 			file.seek(pos)		
+	
+		if lump.name == "D_INTROA":
+			gui_look = true
+			continue
 			
 		if lump.name == "S_START" || lump.name == "P1_START":
+			gui_look = false
 			sprite_look = true
 			continue
 			
@@ -226,7 +232,7 @@ func load_wad(wad_path, level_name, level_scale):
 		if lump.name == "TEXTURE1":
 			lump_texture = lump
 			
-		if sprite_look:
+		if sprite_look || gui_look:
 			var raw_image = Image.new()
 			var pos = file.get_position()
 			

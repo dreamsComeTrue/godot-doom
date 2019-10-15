@@ -39,6 +39,7 @@ func _ready() -> void:
 	$Level.load_wad(WADPath, level_name, level_scale)
 	render_level()
 	place_player_at_start()
+	$GameUI/HUDBar.texture = $Level.get_picture("STBAR").image_texture
 	
 func _process(delta: float) -> void:
 	$SkyBox.translation.x = $Player.translation.x
@@ -48,7 +49,14 @@ func _process(delta: float) -> void:
 func place_player_at_start() -> void:
 	for thing in $Level.things:
 		if thing.type == 1:
-			get_node(player_path).translation = Vector3(thing.x, 3, -thing.y)
+			var space_state = get_world().direct_space_state
+			var raycast = space_state.intersect_ray(Vector3(thing.x, -10000, -thing.y), Vector3(thing.x, 10000, -thing.y))
+			var up_posiiton = Vector3(3, 3, 3)
+			
+			if raycast:
+				up_posiiton = raycast.position
+				
+			get_node(player_path).translation = Vector3(thing.x, up_posiiton.y + 1.5, -thing.y)
 
 func _physics_process(delta):
 	if Input.is_action_pressed("restart_level"):
@@ -130,7 +138,8 @@ func render_level() -> void:
 			var id = create_floor_part(points[idx], points[idx + 1], points[idx + 2], wall1.floor_height, wall1.floor_texture, wall1.light_level)
 			wall1.floor_parts.append(id)
 			
-			create_ceiling_part(points[idx], points[idx + 1], points[idx + 2], wall1.ceil_height, wall1.ceil_texture, wall1.light_level)
+			if wall1.ceil_texture != "F_SKY1":
+				create_ceiling_part(points[idx], points[idx + 1], points[idx + 2], wall1.ceil_height, wall1.ceil_texture, wall1.light_level)
 			
 	var SurfaceMaterial = SpatialMaterial.new()
 	SurfaceMaterial.albedo_color = Color.red
@@ -166,14 +175,20 @@ func render_level() -> void:
 				picture = "PLAYN0"
 			48:
 				picture = "ELECA0"
+			2001:
+				picture = "SHOTA0"				
 			2002:
 				picture = "MGUNA0"				
 			2003:
 				picture = "LAUNA0"
 			2007:
 				picture = "CLIPA0"
-			2012:
+			2008:
+				picture = "SHELA0"
+			2011:
 				picture = "STIMA0"
+			2012:
+				picture = "MEDIA0"
 			2014:
 				picture = "BON1A0"
 			2015:
