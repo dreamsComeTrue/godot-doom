@@ -114,7 +114,7 @@ func combine_8_bytes_to_string(c1, c2, c3, c4, c5, c6, c7, c8):
 	
 func add_picture(name, width, height, image, image_texture):
 	var picture = Picture.new()
-	picture.name = name
+	picture.name = name.to_upper()
 	picture.width = width
 	picture.height = height
 	picture.image = image
@@ -123,8 +123,10 @@ func add_picture(name, width, height, image, image_texture):
 	pictures.append(picture)
 	
 func get_picture(name):
+	var search_name = name.to_upper()
+	
 	for pic in pictures:
-		if pic.name == name:
+		if pic.name == search_name:
 			return pic
 			
 	for pic in pictures:
@@ -206,7 +208,7 @@ func load_wad(wad_path, level_name, level_scale):
 			var nummappatches = file.get_32()
 			for i in range(0, nummappatches):
 				var name = file.get_buffer(8)
-				pnames.append(combine_8_bytes_to_string(name[0], name[1], name[2], name[3], name[4], name[5], name[6], name[7]))
+				pnames.append(combine_8_bytes_to_string(name[0], name[1], name[2], name[3], name[4], name[5], name[6], name[7]).to_upper())
 			
 			file.seek(pos)		
 	
@@ -410,11 +412,11 @@ func load_wad(wad_path, level_name, level_scale):
 		sector.tag = to_short(buffer[i+24], buffer[i+25])
 		sectors.push_back(sector)
 		
-		if sector.floor_height < min_height:
-			min_height = sector.floor_height
+		if sector.floor_height * level_scale < min_height:
+			min_height = sector.floor_height * level_scale
 		
-		if sector.ceil_height > max_height:
-			max_height = sector.ceil_height
+		if sector.ceil_height * level_scale > max_height:
+			max_height = sector.ceil_height * level_scale
 
 		i+=26
 		
@@ -441,10 +443,10 @@ func load_wad(wad_path, level_name, level_scale):
 		
 		var raw_image = Image.new()
 		raw_image.create(width, height, false, Image.FORMAT_RGBA8)
-
+		
 		for j in range(0, patchcount):
-			var originx = file.get_16()
-			var originy = file.get_16()
+			var originx = wrapi(file.get_16(), -32768, 32768)
+			var originy = wrapi(file.get_16(), -32768, 32768)
 			var patch = file.get_16()
 			var stepdir = file.get_16()
 			var colormap = file.get_16()
@@ -453,7 +455,7 @@ func load_wad(wad_path, level_name, level_scale):
 			raw_image.blit_rect(patch_pic.image, Rect2(0, 0, patch_pic.width, patch_pic.height), Vector2(originx, originy))
 			
 		var imageTexture = ImageTexture.new()
-		imageTexture.create_from_image(raw_image, 1 | 2)			
+		imageTexture.create_from_image(raw_image, 1 | 2)
 		add_picture(name, width, height, raw_image, imageTexture)
 				
 	file.close()

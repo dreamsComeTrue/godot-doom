@@ -1,16 +1,13 @@
-[gd_scene load_steps=12 format=2]
+[gd_scene load_steps=9 format=2]
 
 [ext_resource path="res://scripts/GamePlay.gd" type="Script" id=1]
-[ext_resource path="res://scenes/Player.tscn" type="PackedScene" id=2]
+[ext_resource path="res://scenes/GameUI.tscn" type="PackedScene" id=2]
 [ext_resource path="res://scripts/WADLevelLoader.gd" type="Script" id=3]
 [ext_resource path="res://earcut/bin/x11/earcut.gdns" type="Script" id=4]
 [ext_resource path="res://gfx/SKY1.png" type="Texture" id=5]
-[ext_resource path="res://icon.png" type="Texture" id=6]
-[ext_resource path="res://scenes/GameUI.tscn" type="PackedScene" id=7]
+[ext_resource path="res://scenes/Player.tscn" type="PackedScene" id=6]
 
-[sub_resource type="BoxShape" id=1]
-
-[sub_resource type="SpatialMaterial" id=2]
+[sub_resource type="SpatialMaterial" id=1]
 flags_unshaded = true
 flags_do_not_receive_shadows = true
 params_use_alpha_scissor = true
@@ -18,32 +15,23 @@ params_alpha_scissor_threshold = 0.98
 albedo_texture = ExtResource( 5 )
 uv1_scale = Vector3( 1, -1, 1 )
 
-[sub_resource type="BoxShape" id=3]
+[sub_resource type="BoxShape" id=2]
 extents = Vector3( 200000, 0.1, 200000 )
-
-[sub_resource type="SpatialMaterial" id=4]
-flags_unshaded = true
-params_billboard_keep_scale = true
-albedo_texture = ExtResource( 6 )
 
 [node name="Spatial" type="Spatial"]
 script = ExtResource( 1 )
-level_name = "E1M5"
+level_name = "E1M3"
 ear_cut_path = NodePath("EarCut")
 player_path = NodePath("Player")
 
-[node name="Player" parent="." instance=ExtResource( 2 )]
+[node name="Player" parent="." instance=ExtResource( 6 )]
 transform = Transform( -0.9, 0, -1.35896e-07, 0, 0.9, 0, 1.35896e-07, 0, -0.9, 0, 4, 0 )
 
 [node name="StaticBody" type="StaticBody" parent="."]
-transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.086988, 0 )
-visible = false
+transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.416821, 0 )
 
 [node name="CollisionShape" type="CollisionShape" parent="StaticBody"]
 transform = Transform( 500, 0, 0, 0, 0.1, 0, 0, 0, 500, 0, 0, 0 )
-visible = false
-shape = SubResource( 1 )
-disabled = true
 
 [node name="DirectionalLight" type="DirectionalLight" parent="."]
 transform = Transform( 1, 0, 0, 0, 0.819068, 0.573696, 0, -0.573696, 0.819068, 0, 3.14992, 0 )
@@ -61,19 +49,13 @@ invert_faces = true
 mode = 1
 spin_degrees = 360.0
 spin_sides = 4
-material = SubResource( 2 )
+material = SubResource( 1 )
 
 [node name="StaticBody2" type="StaticBody" parent="."]
 
 [node name="CollisionShape" type="CollisionShape" parent="StaticBody2"]
 transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.56039, 0 )
-shape = SubResource( 3 )
+shape = SubResource( 2 )
 disabled = true
 
-[node name="Sprite3D" type="Sprite3D" parent="."]
-transform = Transform( 4, 0, 0, 0, 4, 0, 0, 0, 4, 2.53765, 0, 0 )
-material_override = SubResource( 4 )
-centered = false
-texture = ExtResource( 6 )
-
-[node name="GameUI" parent="." instance=ExtResource( 7 )]
+[node name="GameUI" parent="." instance=ExtResource( 2 )]

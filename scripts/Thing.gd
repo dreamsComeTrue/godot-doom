@@ -74,4 +74,4 @@ func create_sprite3d(location, picture):
 	self.texture = pic.image_texture
 	self.translation = Vector3(location.x, up_posiiton.y, -location.y)
 	self.material_override = material
-	self.scale = Vector3(6, 6, 6)
+	self.scale = Vector3(5, 5, 5)
