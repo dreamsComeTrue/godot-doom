@@ -410,6 +410,7 @@ func load_wad(wad_path, level_name, level_scale):
 		sector.light_level = to_short(buffer[i+20], buffer[i+21])
 		sector.special = to_short(buffer[i+22], buffer[i+23])
 		sector.tag = to_short(buffer[i+24], buffer[i+25])
+
 		sectors.push_back(sector)
 		
 		if sector.floor_height * level_scale < min_height:

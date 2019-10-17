@@ -60,13 +60,14 @@ func create_sprite3d(location, picture):
 	if raycast:
 		up_posiiton = raycast.position
 		
-		for wall in parent.walls:
-			if wall.floor_parts.find(raycast.collider.get_instance_id()) >= 0:
-				var sector_color = Color.white * (wall.light_level / 255.0)
-				material.albedo_color.r = sector_color.r
-				material.albedo_color.g = sector_color.g
-				material.albedo_color.b = sector_color.b
-				break
+		for sector in parent.sectors:
+			for floor_segment in sector.floor_segments:
+				if floor_segment.raycast_id == raycast.collider.get_instance_id():
+					var sector_color = Color.white * (sector.light_level / 255.0)
+					material.albedo_color.r = sector_color.r
+					material.albedo_color.g = sector_color.g
+					material.albedo_color.b = sector_color.b
+					break
 
 	var pic = parent.get_node("Level").get_picture(picture)
 	

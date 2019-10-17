@@ -1,41 +1,43 @@
-extends Node
+extends Spatial
 
 var id : int
 var start_vertex_index : int
 var end_vertex_index : int
 var start_vertex
 var end_vertex
-var floor_height
-var ceil_height
-var light_level
-var texture_floor_height
-var texture_ceil_height
-var floor_texture
-var ceil_texture
-var upper_texture
-var lower_texture
-var middle_texture
-var line_def_type
-var sector
-var x_offset
-var y_offset
-var floor_parts
-var two_sided
-var flags
+var floor_height : float
+var ceil_height : float
+var light_level : int
+var texture_floor_height : float
+var texture_ceil_height : float
+var floor_texture : String
+var ceil_texture : String
+var upper_texture : String
+var lower_texture : String
+var middle_texture : String
+var line_def_type : int
+var sector : int
+var other_sector : int
+var x_offset : int
+var y_offset : int
+var two_sided : bool
+var flags : int
 var lower_unpegged 
 var upper_unpegged
-var front_side
-var floor_height_2
-var ceil_height_2
+var front_side : bool
+var floor_height_2 : float
+var ceil_height_2 : float
 
 func create():
-	if line_def_type in [1, 26, 27, 28, 31, 32, 33, 34, 117, 118]:
-		return
-		
+	for c in get_children():
+		c.queue_free()
+#	if line_def_type in [1, 26, 27, 28, 31, 32, 33, 34, 117, 118]:
+#		return
+
 	if floor_texture != "F_SKY1":
 		if lower_texture != "-":
 			_create_wall_part(0, floor_height, texture_floor_height, lower_texture)
-		
+
 	if middle_texture != "-":
 		_create_wall_part(1, texture_floor_height, texture_ceil_height, middle_texture)
 	
@@ -106,8 +108,7 @@ func _create_wall_part(type, height_low, height_high, picture):
 		
 		if type == 0:
 			if lower_unpegged:
-				offset = ( (ceil_height - height_high) * scaler ) # - size_y
-				#offset = 1.0 - (offset - int(offset))
+				offset = ( (ceil_height - height_high) * scaler )
 			else:
 				offset = ( (higher_floor - height_low) * scaler ) - size_y
 			

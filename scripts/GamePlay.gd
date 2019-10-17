@@ -11,8 +11,9 @@ export(NodePath) var player_path
 
 onready var wall_segment_blueprint = preload("res://scripts/WallSegment.gd")
 onready var flat_segment_blueprint = preload("res://scripts/FlatSegment.gd")
-
-var walls = []
+onready var sector_blueprint = preload("res://scripts/Sector.gd")
+onready var thing_blueprint = preload("res://scripts/Thing.gd")
+var sectors = []
 
 func _ready() -> void:
 	$Level.load_wad(WADPath, level_name, level_scale)
@@ -21,10 +22,41 @@ func _ready() -> void:
 	$GameUI/HUDBar.texture = $Level.get_picture("STBAR").image_texture
 	
 func _process(delta: float) -> void:
+	var player_pos = $Player.translation
+	
+	for sector in sectors:
+		for wall in sector.walls:
+			if wall.line_def_type == 1 and wall.front_side:
+				var vertex1 = wall.start_vertex
+				var vertex2 = wall.end_vertex
+				var distance = distance_player_to_wall(player_pos, vertex1, vertex2)
+				
+				if distance > 5 and distance < 15:
+					move_sector_ceiling(false, wall.other_sector, delta)
+				if distance < 5:
+					move_sector_ceiling(true, wall.other_sector, delta)
+		
 	$SkyBox.translation.x = $Player.translation.x
-	$SkyBox.translation.y = $Player.translation.y - 40
+	$SkyBox.translation.y = $Player.translation.y - 50
 	$SkyBox.translation.z = $Player.translation.z
 	
+func move_sector_ceiling(move_up: bool, sector_id : int, delta: float):
+	for sector in sectors:
+		if sector.sector_id == sector_id:
+			sector.move_ceiling(move_up, delta)
+	
+		for wall in sector.walls:
+			if wall.sector == 4 or wall.other_sector == sector_id:
+				sector.move_walls(move_up, delta, sector_id)
+				break	
+				
+func distance_player_to_wall(player_pos: Vector3, vertex1, vertex2) -> float:
+	var a = vertex1.y - vertex2.y
+	var b = vertex2.x - vertex1.x
+	var c = vertex1.x * vertex2.y - vertex2.x * vertex1.y
+	
+	return abs(a * player_pos.x + b * player_pos.z + c) / sqrt(a * a + b * b)
+
 func place_player_at_start() -> void:
 	for thing in $Level.things:
 		if thing.type == 1:
@@ -40,11 +72,11 @@ func place_player_at_start() -> void:
 func _physics_process(delta):
 	if Input.is_action_pressed("restart_level"):
 		place_player_at_start()
-
+		
 func render_level() -> void:
 	var selected_sectors = [24]#, 38, 41]
 		
-	walls = []
+	var walls = []
 	var sidedef_index = 0
 	for sidedef in $Level.sidedefs:
 #		if sidedef.sector in selected_sectors:
@@ -74,7 +106,6 @@ func render_level() -> void:
 					wall.ceil_texture = curr_sector.ceil_texture
 					wall.x_offset = sidedef.x_offset
 					wall.y_offset = sidedef.y_offset
-					wall.floor_parts = []
 					wall.two_sided = line.left_sidedef > -1 and line.right_sidedef > -1	 #l.flags & 0x0004
 					wall.flags = line.flags
 					wall.lower_unpegged = line.flags & 0x0010 > 0
@@ -82,6 +113,11 @@ func render_level() -> void:
 					wall.front_side = line.right_sidedef == sidedef_index
 					
 					if wall.two_sided:
+						if wall.front_side:
+							wall.other_sector = $Level.sidedefs[$Level.linedefs[wall.id].left_sidedef].sector
+						else:
+							wall.other_sector = $Level.sidedefs[$Level.linedefs[wall.id].right_sidedef].sector
+							
 						for l2 in $Level.linedefs:
 							if wall.front_side and sidedef_index == l2.right_sidedef:
 								wall.texture_floor_height = $Level.sectors[$Level.sidedefs[l2.left_sidedef].sector].floor_height * level_scale
@@ -105,26 +141,34 @@ func render_level() -> void:
 
 	var sectors_drawn = []
 	for wall1 in walls:
-		var floor_data = []
-		
 		if sectors_drawn.find(wall1.sector) >= 0:
 			continue
-	
-		for wall2 in walls:
-			if wall1.sector == wall2.sector:
-				floor_data.append(wall2)
-	
+
 		sectors_drawn.append(wall1.sector)
-		
-		var sorted_polys = sort_polys(floor_data)
+
+		var walls_to_be_drawn = []
+		for candidate_wall in walls:
+			if wall1.sector == candidate_wall.sector:
+				walls_to_be_drawn.append(candidate_wall)
 	
-		get_node(ear_cut_path).positions = PoolVector2Array(sorted_polys[0])
-		get_node(ear_cut_path).rejects = []
+		var points : PoolVector2Array = _triangulate(walls_to_be_drawn)
 		
-		for rej in range(1, sorted_polys.size()):
-			get_node(ear_cut_path).rejects.append(PoolVector2Array(sorted_polys[rej]))
+		var found = null		
+		for sector in sectors:
+			if sector.sector_id == wall1.sector:
+				found = sector
+				break
+				
+		if found == null:
+			found = sector_blueprint.new()
+			found.sector_id = wall1.sector
+			found.light_level = wall1.light_level
+			found.floor_height = wall1.floor_height
+			found.ceil_height = wall1.ceil_height
+			sectors.append(found)
 			
-		var points : PoolVector2Array = get_node(ear_cut_path).triangulate()
+		for w in walls_to_be_drawn:
+			found.walls.append(w)
 		
 		for idx in range(0, points.size(), 3):
 			var v1 = points[idx]
@@ -132,14 +176,15 @@ func render_level() -> void:
 			var v3 = points[idx + 2]
 			
 			if wall1.floor_texture != "F_SKY1":
-				var floor_segment = flat_segment_blueprint.new()
+				var floor_segment = flat_segment_blueprint.new(wall1.sector)
+				found.floor_segments.append(floor_segment)
 				add_child(floor_segment)
 				
-				var id = floor_segment.create_floor_part(v1, v2, v3, wall1.floor_height, wall1.floor_texture, wall1.light_level)
-				wall1.floor_parts.append(id)
+				floor_segment.create_floor_part(v1, v2, v3, wall1.floor_height, wall1.floor_texture, wall1.light_level)
 			
 			if wall1.ceil_texture != "F_SKY1":
-				var ceil_segment = flat_segment_blueprint.new()
+				var ceil_segment = flat_segment_blueprint.new(wall1.sector)
+				found.ceil_segments.append(ceil_segment)
 				add_child(ceil_segment)
 				
 				ceil_segment.create_ceiling_part(v1, v2, v3, wall1.ceil_height, wall1.ceil_texture, wall1.light_level)
@@ -148,26 +193,38 @@ func render_level() -> void:
 	SurfaceMaterial.albedo_color = Color.red
 	SurfaceMaterial.flags_unshaded = true
 			
-	for wall in walls:
-		var color = Color(randf(), randf(), randf())
-		var vertex1 = $Level.vertexes[wall.start_vertex_index]
-		var vertex2 = $Level.vertexes[wall.end_vertex_index]
-		var geometry = ImmediateGeometry.new()
-#		geometry.material_override = SurfaceMaterial
-#		geometry.begin(Mesh.PRIMITIVE_LINES)
-#
-#		geometry.set_color(color)
-#		geometry.add_vertex(Vector3(vertex1.x, wall.floor_height, -vertex1.y))
-#		geometry.add_vertex(Vector3(vertex2.x, wall.floor_height, -vertex2.y))
-#		geometry.end()
-#		add_child(geometry)
-		
-		wall.create()
+	for sector in sectors:
+		for wall in sector.walls:
+			var color = Color(randf(), randf(), randf())
+			var vertex1 = $Level.vertexes[wall.start_vertex_index]
+			var vertex2 = $Level.vertexes[wall.end_vertex_index]
+			var geometry = ImmediateGeometry.new()
+	
+	#		geometry.material_override = SurfaceMaterial
+	#		geometry.begin(Mesh.PRIMITIVE_LINES)
+	#
+	#		geometry.set_color(color)
+	#		geometry.add_vertex(Vector3(vertex1.x, wall.floor_height, -vertex1.y))
+	#		geometry.add_vertex(Vector3(vertex2.x, wall.floor_height, -vertex2.y))
+	#		geometry.end()
+	#		add_child(geometry)
+			
+			wall.create()
 		
 	for thing in $Level.things:
 		if thing.type != 11: # deathmatch start
-			var thing_obj = load("res://scripts/Thing.gd").new(thing.type, Vector2(thing.x, thing.y))
+			var thing_obj = thing_blueprint.new(thing.type, Vector2(thing.x, thing.y))
 			add_child(thing_obj)
+			
+func _triangulate(walls_to_be_drawn) -> PoolVector2Array:
+	var sorted_polys = sort_polys(walls_to_be_drawn)
+	get_node(ear_cut_path).positions = PoolVector2Array(sorted_polys[0])
+	get_node(ear_cut_path).rejects = []
+	
+	for rej in range(1, sorted_polys.size()):
+		get_node(ear_cut_path).rejects.append(PoolVector2Array(sorted_polys[rej]))
+		
+	return get_node(ear_cut_path).triangulate()	
 			
 func sort_polys(walls):
 	var copy = [] + walls

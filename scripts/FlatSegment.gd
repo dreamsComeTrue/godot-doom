@@ -1,8 +1,20 @@
-extends Node
+extends MeshInstance
 
 var animated_flats : Array = []
+var sector : int
+var raycast_id : int
+var vertex1
+var vertex2
+var vertex3
+var flat_height
+var floor_created : bool = false
+var picture : String
+var light : int
+var material = null
 
-func _init() -> void:
+func _init(sector_id : int) -> void:
+	sector = sector_id
+	
 	animated_flats.append(["NUKAGE1", "NUKAGE2", "NUKAGE3"]) 			# Green slime, nukage
 	animated_flats.append(["FWATER1", "FWATER2", "FWATER3", "FWATER4"]) # Blue water
 	animated_flats.append(["SWATER1", "SWATER2", "SWATER3", "SWATER4"]) # Blue water
@@ -12,8 +24,25 @@ func _init() -> void:
 	animated_flats.append(["SLIME01", "SLIME02", "SLIME03", "SLIME04"]) # Brown water
 	animated_flats.append(["SLIME05", "SLIME06", "SLIME07", "SLIME08"]) # Brown slime
 	animated_flats.append(["SLIME09", "SLIME10", "SLIME11", "SLIME12"]) # Small molten rock 
+	
+func create():
+	for c in get_children():
+		c.queue_free()
+		
+	if floor_created:
+		create_floor_part(vertex1, vertex2, vertex3, flat_height, picture, light)
+	else:
+		create_ceiling_part(vertex1, vertex2, vertex3, flat_height, picture, light)
 
-func create_floor_part(v1, v2, v3, height, picture_name, light_level : int) -> int:
+func create_floor_part(v1, v2, v3, height, picture_name, light_level : int) -> void:
+	floor_created = true
+	vertex1 = v1
+	vertex2 = v2
+	vertex3 = v3
+	flat_height = height
+	picture = picture_name
+	light = light_level
+	
 	var surface_tool = SurfaceTool.new();
 
 	surface_tool.begin(Mesh.PRIMITIVE_TRIANGLES);
@@ -29,15 +58,21 @@ func create_floor_part(v1, v2, v3, height, picture_name, light_level : int) -> i
 	surface_tool.add_index(1);
 	surface_tool.add_index(2);
 
-	var mesh_instance = MeshInstance.new()
-	mesh_instance.mesh = surface_tool.commit()
-	mesh_instance.material_override = _get_material(picture_name, light_level)
-	mesh_instance.create_convex_collision()
-	add_child(mesh_instance)
+	self.mesh = surface_tool.commit()
+	self.material_override = _get_material(picture_name, light_level)
+	self.create_convex_collision()
 	
-	return mesh_instance.get_child(0).get_instance_id()
+	raycast_id = self.get_child(0).get_instance_id()
 	
 func create_ceiling_part(v1, v2, v3, height, picture_name, light_level : int) -> void:
+	floor_created = false
+	vertex1 = v1
+	vertex2 = v2
+	vertex3 = v3
+	flat_height = height
+	picture = picture_name
+	light = light_level
+	
 	var surface_tool = SurfaceTool.new();
 
 	surface_tool.begin(Mesh.PRIMITIVE_TRIANGLES);
@@ -53,11 +88,15 @@ func create_ceiling_part(v1, v2, v3, height, picture_name, light_level : int) ->
 	surface_tool.add_index(1);
 	surface_tool.add_index(2);
 
-	var mesh_instance = MeshInstance.new()
-	mesh_instance.mesh = surface_tool.commit()
-	mesh_instance.material_override = _get_material(picture_name, light_level)
-	mesh_instance.create_convex_collision()
-	add_child(mesh_instance)	
+	self.mesh = surface_tool.commit()
+	
+	if material == null:
+		material = _get_material(picture_name, light_level)
+	
+	self.material_override = material
+	self.create_convex_collision()
+	
+	raycast_id = self.get_child(0).get_instance_id()
 
 func _get_material(picture_name : String, light_level : int):
 	var material = SpatialMaterial.new()
