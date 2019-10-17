@@ -9,42 +9,12 @@ export(float) var level_scale = 0.05
 export(NodePath) var ear_cut_path
 export(NodePath) var player_path
 
-class WallSegment:
-	var id
-	var start_vertex
-	var end_vertex
-	var floor_height
-	var ceil_height
-	var light_level
-	var texture_floor_height
-	var texture_ceil_height
-	var floor_texture
-	var ceil_texture
-	var upper_texture
-	var lower_texture
-	var middle_texture
-	var line_def_type
-	var sector
-	var x_offset
-	var y_offset
-	var floor_parts
-	var two_sided
-	var flags
-	var lower_unpegged 
-	var upper_unpegged
-	var front_side
-	var floor_height_2
-	var ceil_height_2
-	
+onready var wall_segment_blueprint = preload("res://scripts/WallSegment.gd")
+onready var flat_segment_blueprint = preload("res://scripts/FlatSegment.gd")
+
 var walls = []
 
 func _ready() -> void:
-	if SurfaceMaterial == null:
-		SurfaceMaterial = SpatialMaterial.new()
-		SurfaceMaterial.flags_unshaded = true
-		SurfaceMaterial.flags_vertex_lighting = true
-		SurfaceMaterial.vertex_color_use_as_albedo = true
-		
 	$Level.load_wad(WADPath, level_name, level_scale)
 	render_level()
 	place_player_at_start()
@@ -84,10 +54,12 @@ func render_level() -> void:
 			for line in $Level.linedefs:
 				if sidedef_index == line.right_sidedef or sidedef_index == line.left_sidedef:
 					var curr_sector = $Level.sectors[sidedef.sector]
-					var wall = WallSegment.new()
+					var wall = wall_segment_blueprint.new()
 					wall.id = line_index
-					wall.start_vertex = line.start_vertex
-					wall.end_vertex = line.end_vertex
+					wall.start_vertex_index = line.start_vertex
+					wall.end_vertex_index = line.end_vertex
+					wall.start_vertex = $Level.vertexes[line.start_vertex]
+					wall.end_vertex = $Level.vertexes[line.end_vertex]					
 					wall.floor_height = curr_sector.floor_height  * level_scale
 					wall.ceil_height = curr_sector.ceil_height * level_scale
 					wall.texture_floor_height = wall.floor_height
@@ -126,6 +98,7 @@ func render_level() -> void:
 								break
 
 					walls.push_back(wall)
+					add_child(wall)
 				line_index += 1
 		
 		sidedef_index += 1	
@@ -139,8 +112,6 @@ func render_level() -> void:
 	
 		for wall2 in walls:
 			if wall1.sector == wall2.sector:
-				var vertex1 = $Level.vertexes[wall2.start_vertex]
-				var vertex2 = $Level.vertexes[wall2.end_vertex]
 				floor_data.append(wall2)
 	
 		sectors_drawn.append(wall1.sector)
@@ -156,12 +127,22 @@ func render_level() -> void:
 		var points : PoolVector2Array = get_node(ear_cut_path).triangulate()
 		
 		for idx in range(0, points.size(), 3):
+			var v1 = points[idx]
+			var v2 = points[idx + 1]
+			var v3 = points[idx + 2]
+			
 			if wall1.floor_texture != "F_SKY1":
-				var id = create_floor_part(points[idx], points[idx + 1], points[idx + 2], wall1.floor_height, wall1.floor_texture, wall1.light_level)
+				var floor_segment = flat_segment_blueprint.new()
+				add_child(floor_segment)
+				
+				var id = floor_segment.create_floor_part(v1, v2, v3, wall1.floor_height, wall1.floor_texture, wall1.light_level)
 				wall1.floor_parts.append(id)
 			
 			if wall1.ceil_texture != "F_SKY1":
-				create_ceiling_part(points[idx], points[idx + 1], points[idx + 2], wall1.ceil_height, wall1.ceil_texture, wall1.light_level)
+				var ceil_segment = flat_segment_blueprint.new()
+				add_child(ceil_segment)
+				
+				ceil_segment.create_ceiling_part(v1, v2, v3, wall1.ceil_height, wall1.ceil_texture, wall1.light_level)
 			
 	var SurfaceMaterial = SpatialMaterial.new()
 	SurfaceMaterial.albedo_color = Color.red
@@ -169,8 +150,8 @@ func render_level() -> void:
 			
 	for wall in walls:
 		var color = Color(randf(), randf(), randf())
-		var vertex1 = $Level.vertexes[wall.start_vertex]
-		var vertex2 = $Level.vertexes[wall.end_vertex]
+		var vertex1 = $Level.vertexes[wall.start_vertex_index]
+		var vertex2 = $Level.vertexes[wall.end_vertex_index]
 		var geometry = ImmediateGeometry.new()
 #		geometry.material_override = SurfaceMaterial
 #		geometry.begin(Mesh.PRIMITIVE_LINES)
@@ -181,7 +162,7 @@ func render_level() -> void:
 #		geometry.end()
 #		add_child(geometry)
 		
-		create_wall(vertex1, vertex2, wall)
+		wall.create()
 		
 	for thing in $Level.things:
 		if thing.type != 11: # deathmatch start
@@ -197,8 +178,8 @@ func sort_polys(walls):
 		
 		var sub_array = []
 		
-		var vertex1 = $Level.vertexes[element.start_vertex]
-		var vertex2 = $Level.vertexes[element.end_vertex]
+		var vertex1 = $Level.vertexes[element.start_vertex_index]
+		var vertex2 = $Level.vertexes[element.end_vertex_index]
 #		print("> " + str(element.start_vertex) + " " + str(element.end_vertex))   
 		
 		sub_array.append(Vector2(vertex1.x, vertex1.y))
@@ -214,8 +195,8 @@ func sort_polys(walls):
 			
 			for i in range(0, copy.size()):
 				var element_tmp = copy[i]
-				var tmp1 = $Level.vertexes[element_tmp.start_vertex]
-				var tmp2 = $Level.vertexes[element_tmp.end_vertex]
+				var tmp1 = $Level.vertexes[element_tmp.start_vertex_index]
+				var tmp2 = $Level.vertexes[element_tmp.end_vertex_index]
 				
 				if tmp1.x == last_vertex.x and tmp1.y == last_vertex.y:
 					sub_array.append(Vector2(tmp1.x, tmp1.y))
@@ -290,196 +271,14 @@ func _point_in_poly(polygon : Array, test_point : Vector2) -> bool:
 			
 	return c
 	
-func create_wall(start_vertex, end_vertex, wall):
-	if wall.line_def_type in [1, 26, 27, 28, 31, 32, 33, 34, 117, 118]:
-		return
-		
-	if wall.floor_texture != "F_SKY1":
-		if wall.lower_texture != "-":
-			create_wall_part(0, start_vertex, end_vertex, wall.floor_height, wall.texture_floor_height, wall.lower_texture, wall)
-		
-	if wall.middle_texture != "-":
-		create_wall_part(1, start_vertex, end_vertex, wall.texture_floor_height, wall.texture_ceil_height, wall.middle_texture, wall)
-	
-	if not wall.two_sided and wall.ceil_texture == "F_SKY1":
-		return
-		
-	var line_def = $Level.linedefs[wall.id]
-	var tex_right = $Level.sectors[$Level.sidedefs[line_def.right_sidedef].sector].ceil_texture
-	var tex_left = $Level.sectors[$Level.sidedefs[line_def.left_sidedef].sector].ceil_texture
-	
-	if tex_right == "F_SKY1" and tex_left == "F_SKY1":
-		return
-	
-	if wall.upper_texture != "-":
-		create_wall_part(2, start_vertex, end_vertex, wall.texture_ceil_height, wall.ceil_height, wall.upper_texture, wall)
-	
-# type: 0 - lower, 1 - middle, 2 - upper
-func create_wall_part(type, start_vertex, end_vertex, height_low, height_high, picture, wall):
-	if height_high - height_low <= 0:
-		return
-		
-	var wall_material = SpatialMaterial.new()
-	wall_material.flags_unshaded = true
-	wall_material.flags_transparent = true	
-	wall_material.params_cull_mode = SpatialMaterial.CULL_DISABLED
-	wall_material.params_depth_draw_mode = SpatialMaterial.DEPTH_DRAW_ALWAYS
-	wall_material.flags_disable_ambient_light = true
-	wall_material.flags_do_not_receive_shadows = true
-	wall_material.params_alpha_scissor_threshold = 1
-	wall_material.params_use_alpha_scissor = true
-		
-	var sector_color = Color.white * (wall.light_level / 255.0)
-	wall_material.albedo_color.r = sector_color.r
-	wall_material.albedo_color.g = sector_color.g
-	wall_material.albedo_color.b = sector_color.b
-	wall_material.albedo_texture = $Level.get_picture(picture).image_texture	
+func get_picture(pic_name):
+	return $Level.get_picture(pic_name)
 
-	var surface_tool = SurfaceTool.new();
-	surface_tool.begin(Mesh.PRIMITIVE_TRIANGLES);
-	
-	var texture_width  : float = wall_material.albedo_texture.get_width()
-	var texture_height : float = wall_material.albedo_texture.get_height()
-	var point_start = Vector3(start_vertex.x, height_high, -start_vertex.y)
-	var point_end = Vector3(end_vertex.x, height_high, -end_vertex.y)
-	var size_x : float = point_start.distance_to(point_end) / level_scale / texture_width
-	var size_y : float
-	var scaler : float = 1.0 / level_scale / texture_height
-	
-	if height_high > height_low:
-		size_y = (height_high - height_low) * scaler
-	else:
-		size_y = (height_low - height_high) * scaler
-	
-	var horizontal_offset = float(wall.x_offset) / texture_width
-	var vertical_offset = float(wall.y_offset) / texture_height
-	
-		#	0 1
-		#   2 3
-		
-	var offset : float = 0.0
-	
-	if wall.two_sided:
-		var higher_ceil = wall.ceil_height if wall.ceil_height > wall.ceil_height_2 else wall.ceil_height_2
-		var lowest_ceil = wall.ceil_height if wall.ceil_height < wall.ceil_height_2 else wall.ceil_height_2
-		var higher_floor = wall.floor_height if wall.floor_height > wall.floor_height_2 else wall.floor_height_2
-		var lowest_floor = wall.floor_height if wall.floor_height < wall.floor_height_2 else wall.floor_height_2
-		
-		if type == 0:
-			if wall.lower_unpegged:
-				offset = ( (wall.ceil_height - height_high) * scaler ) # - size_y
-				#offset = 1.0 - (offset - int(offset))
-			else:
-				offset = ( (higher_floor - height_low) * scaler ) - size_y
-			
-		if type == 1:
-			if wall.lower_unpegged:
-				offset = 1.0 - (size_y - int(size_y))
-			else:
-				offset = 0.0
-			
-		if type == 2:
-			if wall.upper_unpegged:
-				offset = ( (higher_ceil - lowest_ceil) * scaler ) - size_y
-			else:
-				offset = 1.0 - (size_y - int(size_y))
-	else:
-		if wall.lower_unpegged:
-			offset = 1.0 - (size_y - int(size_y))
-		else:
-			offset = 0.0
-		
-	var vert_uv_1 : float = offset
-	var vert_uv_2 : float = offset
-	var vert_uv_3 : float = offset + size_y
-	var vert_uv_4 : float = offset + size_y
-			
-	surface_tool.add_uv(Vector2(horizontal_offset, vertical_offset + vert_uv_1))
-	surface_tool.add_vertex(Vector3(start_vertex.x, height_high, -start_vertex.y))
-	
-	surface_tool.add_uv(Vector2(size_x + horizontal_offset, vertical_offset + vert_uv_2))
-	surface_tool.add_vertex(Vector3(end_vertex.x, height_high, -end_vertex.y))
+func get_linedef(id):
+	return $Level.linedefs[id]
 
-	surface_tool.add_uv(Vector2(horizontal_offset, vertical_offset + vert_uv_3))
-	surface_tool.add_vertex(Vector3(start_vertex.x, height_low, -start_vertex.y))
-	
-	surface_tool.add_uv(Vector2(size_x + horizontal_offset, vertical_offset + vert_uv_4))
-	surface_tool.add_vertex(Vector3(end_vertex.x, height_low, -end_vertex.y))
+func get_sidedef(id):
+	return $Level.sidedefs[id]
 
-	surface_tool.add_index(0)
-	surface_tool.add_index(2)
-	surface_tool.add_index(1)
-	
-	surface_tool.add_index(2)
-	surface_tool.add_index(3)
-	surface_tool.add_index(1)
-
-	var mesh_instance = MeshInstance.new()
-	mesh_instance.mesh = surface_tool.commit()
-	mesh_instance.material_override = wall_material
-	mesh_instance.create_convex_collision()
-	add_child(mesh_instance)
-		
-func create_floor_part(v1, v2, v3, height, picture, light_level):
-	var material = SpatialMaterial.new()
-	material.flags_unshaded = true
-	material.params_cull_mode = SpatialMaterial.CULL_DISABLED
-	material.albedo_color = Color.white * (light_level / 255.0)
-	material.albedo_texture = $Level.get_picture(picture).image_texture
-	material.uv1_triplanar = true
-	var scale = 0.3
-	material.uv1_scale = Vector3(scale, scale, scale)
-		
-	var surface_tool = SurfaceTool.new();
-
-	surface_tool.begin(Mesh.PRIMITIVE_TRIANGLES);
-
-	surface_tool.add_normal(Vector3.UP)
-	surface_tool.add_vertex(Vector3(v1.x, height, -v1.y))
-	surface_tool.add_normal(Vector3.UP)
-	surface_tool.add_vertex(Vector3(v2.x, height, -v2.y))
-	surface_tool.add_normal(Vector3.UP)
-	surface_tool.add_vertex(Vector3(v3.x, height, -v3.y))
-
-	surface_tool.add_index(0);
-	surface_tool.add_index(1);
-	surface_tool.add_index(2);
-
-	var mesh_instance = MeshInstance.new()
-	mesh_instance.mesh = surface_tool.commit()
-	mesh_instance.material_override = material
-	mesh_instance.create_convex_collision()
-	add_child(mesh_instance)
-	
-	return mesh_instance.get_child(0).get_instance_id()
-	
-func create_ceiling_part(v1, v2, v3, height, picture, light_level):
-	var material = SpatialMaterial.new()
-	material.flags_unshaded = true
-	material.params_cull_mode = SpatialMaterial.CULL_DISABLED
-	material.albedo_color = Color.white * (light_level / 255.0)
-	material.albedo_texture = $Level.get_picture(picture).image_texture
-	material.uv1_triplanar = true
-	var scale = 0.4
-	material.uv1_scale = Vector3(scale, scale, scale)
-		
-	var surface_tool = SurfaceTool.new();
-
-	surface_tool.begin(Mesh.PRIMITIVE_TRIANGLES);
-
-	surface_tool.add_normal(Vector3.DOWN)
-	surface_tool.add_vertex(Vector3(v1.x, height, -v1.y));
-	surface_tool.add_normal(Vector3.DOWN)
-	surface_tool.add_vertex(Vector3(v2.x, height, -v2.y));
-	surface_tool.add_normal(Vector3.DOWN)
-	surface_tool.add_vertex(Vector3(v3.x, height, -v3.y));
-
-	surface_tool.add_index(0);
-	surface_tool.add_index(1);
-	surface_tool.add_index(2);
-
-	var mesh_instance = MeshInstance.new()
-	mesh_instance.mesh = surface_tool.commit()
-	mesh_instance.material_override = material
-	mesh_instance.create_convex_collision()
-	add_child(mesh_instance)	
+func get_sector(id):
+	return $Level.sectors[id]
