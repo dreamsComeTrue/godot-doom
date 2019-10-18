@@ -78,7 +78,7 @@ func _physics_process(delta):
 		place_player_at_start()
 		
 func render_level() -> void:
-	var selected_sectors = [24]#, 38, 41]
+	var selected_sectors = [38]#, 38, 41]
 		
 	var walls = []
 	var sidedef_index = 0
@@ -155,8 +155,6 @@ func render_level() -> void:
 			if wall1.sector == candidate_wall.sector:
 				walls_to_be_drawn.append(candidate_wall)
 	
-		var points : PoolVector2Array = _triangulate(walls_to_be_drawn)
-		
 		var found = null		
 		for sector in sectors:
 			if sector.sector_id == wall1.sector:
@@ -174,24 +172,26 @@ func render_level() -> void:
 		for w in walls_to_be_drawn:
 			found.walls.append(w)
 		
-		for idx in range(0, points.size(), 3):
-			var v1 = points[idx]
-			var v2 = points[idx + 1]
-			var v3 = points[idx + 2]
-			
-			if wall1.floor_texture != "F_SKY1":
-				var floor_segment = flat_segment_blueprint.new(wall1.sector)
-				found.floor_segments.append(floor_segment)
-				add_child(floor_segment)
+		var points_set : Array = _triangulate(walls_to_be_drawn)
+		for points in points_set:
+			for idx in range(0, points.size(), 3):
+				var v1 = points[idx]
+				var v2 = points[idx + 1]
+				var v3 = points[idx + 2]
 				
-				floor_segment.create_floor_part(v1, v2, v3, wall1.floor_height, wall1.floor_texture, wall1.light_level)
-			
-			if wall1.ceil_texture != "F_SKY1":
-				var ceil_segment = flat_segment_blueprint.new(wall1.sector)
-				found.ceil_segments.append(ceil_segment)
-				add_child(ceil_segment)
+				if wall1.floor_texture != "F_SKY1":
+					var floor_segment = flat_segment_blueprint.new(wall1.sector)
+					found.floor_segments.append(floor_segment)
+					add_child(floor_segment)
+					
+					floor_segment.create_floor_part(v1, v2, v3, wall1.floor_height, wall1.floor_texture, wall1.light_level)
 				
-				ceil_segment.create_ceiling_part(v1, v2, v3, wall1.ceil_height, wall1.ceil_texture, wall1.light_level)
+				if wall1.ceil_texture != "F_SKY1":
+					var ceil_segment = flat_segment_blueprint.new(wall1.sector)
+					found.ceil_segments.append(ceil_segment)
+					add_child(ceil_segment)
+					
+					ceil_segment.create_ceiling_part(v1, v2, v3, wall1.ceil_height, wall1.ceil_texture, wall1.light_level)
 			
 	var SurfaceMaterial = SpatialMaterial.new()
 	SurfaceMaterial.albedo_color = Color.red
@@ -220,17 +220,22 @@ func render_level() -> void:
 			var thing_obj = thing_blueprint.new(thing.type, Vector2(thing.x, thing.y))
 			add_child(thing_obj)
 			
-func _triangulate(walls_to_be_drawn) -> PoolVector2Array:
-	var sorted_polys = sort_polys(walls_to_be_drawn)
-	get_node(ear_cut_path).positions = PoolVector2Array(sorted_polys[0])
-	get_node(ear_cut_path).rejects = []
+func _triangulate(walls_to_be_drawn) -> Array:
+	var points_set : Array = []
 	
-	for rej in range(1, sorted_polys.size()):
-		get_node(ear_cut_path).rejects.append(PoolVector2Array(sorted_polys[rej]))
+	for sorted_polys in sort_polys(walls_to_be_drawn):
+		get_node(ear_cut_path).positions = PoolVector2Array(sorted_polys[0])
+		get_node(ear_cut_path).rejects = []
 		
-	return get_node(ear_cut_path).triangulate()	
+		for rej in range(1, sorted_polys.size()):
+			get_node(ear_cut_path).rejects.append(PoolVector2Array(sorted_polys[rej]))
 			
-func sort_polys(walls):
+		points_set.append(get_node(ear_cut_path).triangulate())
+		
+	return points_set
+			
+# Returns Array of Array of structs: Outer, Inner1, Inner2, InnerN...
+func sort_polys(walls : Array) -> Array:
 	var copy = [] + walls
 	var sorted = []
 	
@@ -241,6 +246,7 @@ func sort_polys(walls):
 		
 		var vertex1 = $Level.vertexes[element.start_vertex_index]
 		var vertex2 = $Level.vertexes[element.end_vertex_index]
+#		print("> " + str(element.id))
 #		print("> " + str(element.start_vertex) + " " + str(element.end_vertex))   
 		
 		sub_array.append(Vector2(vertex1.x, vertex1.y))
@@ -262,16 +268,17 @@ func sort_polys(walls):
 				if tmp1.x == last_vertex.x and tmp1.y == last_vertex.y:
 					sub_array.append(Vector2(tmp1.x, tmp1.y))
 					sub_array.append(Vector2(tmp2.x, tmp2.y))
+#					print("A " + str(element_tmp.id))
 #					print("A " + str(element_tmp.start_vertex) + " " + str(element_tmp.end_vertex))   
 					copy.remove(i)
 					
 					last_vertex = tmp2
 					found = true
-					break
-					
-				if tmp2.x == last_vertex.x and tmp2.y == last_vertex.y:
+					break					
+				elif tmp2.x == last_vertex.x and tmp2.y == last_vertex.y:
 					sub_array.append(Vector2(tmp2.x, tmp2.y))
 					sub_array.append(Vector2(tmp1.x, tmp1.y))
+#					print("B " + str(element_tmp.id))
 #					print("B " + str(element_tmp.start_vertex) + " " + str(element_tmp.end_vertex))   
 					copy.remove(i)
 					
@@ -286,36 +293,53 @@ func sort_polys(walls):
 		
 	#	Check which polygon is outer-shell one
 	var final_array = []
+	var islands = []
 	
 	if sorted.size() == 1:
-		final_array.append(sorted[0])
+		var item : Array = []
+		item.append(sorted[0])
+
+		final_array.append(item)
 	else:
-		var check_for_next = true
-		var candidate
-			
-		for el in sorted:
-			if check_for_next:
-				check_for_next = false
-				candidate = el
-				
-				for el_check in sorted:
-					if el_check == el or check_for_next:
-						continue
+		var inner_counter
+		var inners : Array = []
+		
+		for outer in sorted:
+			inner_counter = 0
+			for inner in sorted:
+				if _poly_contains_poly(outer, inner):
+					if not inners.has(inner_counter):
+						inners.append(inner_counter)
 						
-					for point in el_check:
-						if not _point_in_poly(candidate, point):
-							check_for_next = true
-							break
-							
-					if not check_for_next:
-						final_array.append(candidate)
-						break
+				inner_counter += 1
 		
+		var outers : Array = []
+								
+		inner_counter = 0
 		for el in sorted:
-			if el != candidate:
-				final_array.append(el)
-		
+			if not inners.has(inner_counter):
+				var item : Array = []				
+				item.append(el)
+				
+				var deep_inner_counter = 0
+				for deep_el in sorted:
+					if inners.has(deep_inner_counter):
+						item.append(deep_el)
+					
+					deep_inner_counter += 1
+						
+				final_array.append(item)
+				
+			inner_counter += 1
+
 	return final_array
+	
+func _poly_contains_poly(outer: Array, inner: Array) -> bool:
+	for point in inner:
+		if not _point_in_poly(outer, point):
+			return false
+			
+	return true	
 	
 func _point_in_poly(polygon : Array, test_point : Vector2) -> bool:
 	var i : int = 0
