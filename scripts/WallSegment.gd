@@ -28,9 +28,11 @@ var front_side : bool
 var floor_height_2 : float
 var ceil_height_2 : float
 
+var mesh_instance : MeshInstance
+var mdt = MeshDataTool.new()
+var pos_offset : float = 0.0
+
 func create():
-	for c in get_children():
-		c.queue_free()
 #	if line_def_type in [1, 26, 27, 28, 31, 32, 33, 34, 117, 118]:
 #		return
 
@@ -53,11 +55,35 @@ func create():
 	
 	if upper_texture != "-":
 		_create_wall_part(2, texture_ceil_height, ceil_height, upper_texture)
+		
+func move_ceiling(offset: float, scale_uv: bool):
+	if mesh_instance != null:
+		pos_offset += offset
+		
+		mdt.create_from_surface(mesh_instance.mesh, 0)
 	
-# type: 0 - lower, 1 - middle, 2 - upper
+		if scale_uv:
+			var uvs = _get_uvs(1, get_parent().get_picture(middle_texture).image_texture, texture_floor_height, texture_ceil_height + pos_offset)
+			for i in range(2):
+				var vertex = mdt.get_vertex(i)
+				vertex.y += offset
+				var uv = mdt.get_vertex_uv(i)
+				mdt.set_vertex_uv(i, Vector2(uv.x, uvs[i]))
+				mdt.set_vertex(i, vertex)	
+		else:
+			for i in range(mdt.get_vertex_count()):
+				var vertex = mdt.get_vertex(i)
+				vertex.y += offset
+				mdt.set_vertex(i, vertex)
+	
+		mesh_instance.get_child(0).free()
+		mesh_instance.mesh.surface_remove(0)
+		mdt.commit_to_surface(mesh_instance.mesh)
+		mesh_instance.create_convex_collision()
+	
 func _create_wall_part(type, height_low, height_high, picture):
-	if height_high - height_low <= 0:
-		return
+#	if height_high - height_low <= 0:
+#		return
 		
 	var wall_material = SpatialMaterial.new()
 	wall_material.flags_unshaded = true
@@ -80,6 +106,45 @@ func _create_wall_part(type, height_low, height_high, picture):
 	
 	var texture_width  : float = wall_material.albedo_texture.get_width()
 	var texture_height : float = wall_material.albedo_texture.get_height()
+	var point_start = Vector3(start_vertex.x, height_high, -start_vertex.y)
+	var point_end = Vector3(end_vertex.x, height_high, -end_vertex.y)
+	var level_scale : float = get_parent().level_scale
+	var size_x : float = point_start.distance_to(point_end) / level_scale / texture_width
+	var horizontal_offset = float(x_offset) / texture_width
+	var vertical_offset = float(y_offset) / texture_height
+	
+	var uvs = _get_uvs(type, wall_material.albedo_texture, height_low, height_high)
+			
+	surface_tool.add_uv(Vector2(horizontal_offset, vertical_offset + uvs[0]))
+	surface_tool.add_vertex(Vector3(start_vertex.x, height_high, -start_vertex.y))
+	
+	surface_tool.add_uv(Vector2(size_x + horizontal_offset, vertical_offset + uvs[1]))
+	surface_tool.add_vertex(Vector3(end_vertex.x, height_high, -end_vertex.y))
+
+	surface_tool.add_uv(Vector2(horizontal_offset, vertical_offset + uvs[2]))
+	surface_tool.add_vertex(Vector3(start_vertex.x, height_low, -start_vertex.y))
+	
+	surface_tool.add_uv(Vector2(size_x + horizontal_offset, vertical_offset + uvs[3]))
+	surface_tool.add_vertex(Vector3(end_vertex.x, height_low, -end_vertex.y))
+
+	surface_tool.add_index(0)
+	surface_tool.add_index(2)
+	surface_tool.add_index(1)
+	
+	surface_tool.add_index(2)
+	surface_tool.add_index(3)
+	surface_tool.add_index(1)
+
+	mesh_instance = MeshInstance.new()
+	mesh_instance.mesh = surface_tool.commit()
+	mesh_instance.material_override = wall_material
+	mesh_instance.create_convex_collision()
+	add_child(mesh_instance)
+
+# type: 0 - lower, 1 - middle, 2 - upper
+func _get_uvs(type: int, texture: Texture, height_low, height_high) -> Array:
+	var texture_width  : float = texture.get_width()
+	var texture_height : float = texture.get_height()
 	var point_start = Vector3(start_vertex.x, height_high, -start_vertex.y)
 	var point_end = Vector3(end_vertex.x, height_high, -end_vertex.y)
 	var level_scale : float = get_parent().level_scale
@@ -132,30 +197,6 @@ func _create_wall_part(type, height_low, height_high, picture):
 	var vert_uv_1 : float = offset
 	var vert_uv_2 : float = offset
 	var vert_uv_3 : float = offset + size_y
-	var vert_uv_4 : float = offset + size_y
-			
-	surface_tool.add_uv(Vector2(horizontal_offset, vertical_offset + vert_uv_1))
-	surface_tool.add_vertex(Vector3(start_vertex.x, height_high, -start_vertex.y))
+	var vert_uv_4 : float = offset + size_y	
 	
-	surface_tool.add_uv(Vector2(size_x + horizontal_offset, vertical_offset + vert_uv_2))
-	surface_tool.add_vertex(Vector3(end_vertex.x, height_high, -end_vertex.y))
-
-	surface_tool.add_uv(Vector2(horizontal_offset, vertical_offset + vert_uv_3))
-	surface_tool.add_vertex(Vector3(start_vertex.x, height_low, -start_vertex.y))
-	
-	surface_tool.add_uv(Vector2(size_x + horizontal_offset, vertical_offset + vert_uv_4))
-	surface_tool.add_vertex(Vector3(end_vertex.x, height_low, -end_vertex.y))
-
-	surface_tool.add_index(0)
-	surface_tool.add_index(2)
-	surface_tool.add_index(1)
-	
-	surface_tool.add_index(2)
-	surface_tool.add_index(3)
-	surface_tool.add_index(1)
-
-	var mesh_instance = MeshInstance.new()
-	mesh_instance.mesh = surface_tool.commit()
-	mesh_instance.material_override = wall_material
-	mesh_instance.create_convex_collision()
-	add_child(mesh_instance)
+	return [vert_uv_1, vert_uv_2, vert_uv_3, vert_uv_4]

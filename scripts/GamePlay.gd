@@ -22,18 +22,19 @@ func _ready() -> void:
 	$GameUI/HUDBar.texture = $Level.get_picture("STBAR").image_texture
 	
 func _process(delta: float) -> void:
-	var player_pos = $Player.translation
+	var player_pos = Vector2($Player.translation.x, $Player.translation.z)  
 	
 	for sector in sectors:
 		for wall in sector.walls:
 			if wall.line_def_type == 1 and wall.front_side:
-				var vertex1 = wall.start_vertex
-				var vertex2 = wall.end_vertex
-				var distance = distance_player_to_wall(player_pos, vertex1, vertex2)
-				
-				if distance > 5 and distance < 15:
+				var vertex1 = Vector2(wall.start_vertex.x, -wall.start_vertex.y)
+				var vertex2 = Vector2(wall.end_vertex.x, -wall.end_vertex.y)
+				var mid_point = vertex1.linear_interpolate(vertex2, 0.5)
+				var distance = abs(player_pos.distance_to(mid_point))
+
+				if distance > 8 and distance < 15:
 					move_sector_ceiling(false, wall.other_sector, delta)
-				if distance < 5:
+				if distance < 8:
 					move_sector_ceiling(true, wall.other_sector, delta)
 		
 	$SkyBox.translation.x = $Player.translation.x
@@ -41,22 +42,25 @@ func _process(delta: float) -> void:
 	$SkyBox.translation.z = $Player.translation.z
 	
 func move_sector_ceiling(move_up: bool, sector_id : int, delta: float):
+	var lowest_ceiling = 10000.0	
+	var floor_height = 0.0
+	for s in sectors:
+		for wall_segment in s.walls:
+			if wall_segment.other_sector == sector_id:
+				var sec = get_sector(wall_segment.sector)
+				if sec.ceil_height - sec.floor_height < lowest_ceiling:
+					lowest_ceiling = sec.ceil_height - sec.floor_height
+					floor_height = sec.floor_height
+
 	for sector in sectors:
 		if sector.sector_id == sector_id:
-			sector.move_ceiling(move_up, delta)
+			sector.move_ceiling(move_up, lowest_ceiling * level_scale, delta)
 	
 		for wall in sector.walls:
-			if wall.sector == 4 or wall.other_sector == sector_id:
-				sector.move_walls(move_up, delta, sector_id)
+			if wall.sector == sector_id or wall.other_sector == sector_id:
+				sector.move_walls(move_up, (lowest_ceiling + floor_height) * level_scale, delta, sector_id)
 				break	
 				
-func distance_player_to_wall(player_pos: Vector3, vertex1, vertex2) -> float:
-	var a = vertex1.y - vertex2.y
-	var b = vertex2.x - vertex1.x
-	var c = vertex1.x * vertex2.y - vertex2.x * vertex1.y
-	
-	return abs(a * player_pos.x + b * player_pos.z + c) / sqrt(a * a + b * b)
-
 func place_player_at_start() -> void:
 	for thing in $Level.things:
 		if thing.type == 1:

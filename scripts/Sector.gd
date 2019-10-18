@@ -8,34 +8,33 @@ var floor_segments : Array
 var ceil_segments : Array
 var walls: Array
 
-var max_ceil_height_delta : float = 3.25
-
 var moving_speed: float = 3.5
 
-func move_ceiling(move_up: bool, delta: float) -> void:
+func move_ceiling(move_up: bool, lowest_ceiling: float, delta: float) -> void:
 	for ceil_segment in ceil_segments:
-		if ceil_segment.flat_height < ceil_height + max_ceil_height_delta:
-			if move_up:
-				ceil_segment.flat_height += moving_speed * delta
-				ceil_segment.create()
+		if move_up:
+			if ceil_segment.pos_offset < lowest_ceiling:
+				ceil_segment.move_ceiling(moving_speed * delta)
+			else:
+				ceil_segment.move_ceiling(lowest_ceiling - ceil_segment.pos_offset)
 				
-		if ceil_segment.flat_height > ceil_height:
-			if not move_up:
-				ceil_segment.flat_height -= moving_speed * delta
-				ceil_segment.create()
+		if not move_up:
+			if ceil_segment.pos_offset > 0.0:
+				ceil_segment.move_ceiling(-moving_speed * delta)
+			else:
+				ceil_segment.move_ceiling(0.0 - ceil_segment.pos_offset)
 		
-func move_walls(move_up: bool, delta: float, sector_id: int) -> void:
+func move_walls(move_up: bool, lowest_ceiling: float, delta: float, sector_id: int) -> void:
 	for wall_segment in walls:
 		if wall_segment.sector == sector_id or wall_segment.other_sector == sector_id:
-			if wall_segment.ceil_height < ceil_height + max_ceil_height_delta:
-				if move_up:
-					wall_segment.ceil_height += moving_speed * delta
-					wall_segment.texture_ceil_height += moving_speed * delta
-					wall_segment.create()
-		
-			if wall_segment.ceil_height > ceil_height:
-				if not move_up:
-					wall_segment.ceil_height -= moving_speed * delta
-					wall_segment.texture_ceil_height -= moving_speed * delta
-					wall_segment.create()
-		
+			if move_up:
+				if wall_segment.pos_offset < lowest_ceiling - wall_segment.texture_floor_height:
+					wall_segment.move_ceiling(moving_speed * delta, wall_segment.sector == sector_id)
+				else:
+					wall_segment.move_ceiling(lowest_ceiling - wall_segment.texture_floor_height - wall_segment.pos_offset, wall_segment.sector == sector_id)
+					
+			if not move_up:
+				if wall_segment.pos_offset > 0.0:
+					wall_segment.move_ceiling(-moving_speed * delta, wall_segment.sector == sector_id)
+				else:
+					wall_segment.move_ceiling(0.0 - wall_segment.pos_offset, wall_segment.sector == sector_id)

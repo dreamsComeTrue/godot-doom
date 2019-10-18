@@ -4,29 +4,29 @@ var type : int
 var location: Vector2
 
 var pic_lookup = {
-		9: "SPOSA1",
-		10: "SPOSU0",
-		12: "SPOSU0",
-		15: "PLAYN0",
-		48: "ELECA0",
-		2001: "SHOTA0",
-		2002: "MGUNA0",
-		2003: "LAUNA0",
-		2007: "CLIPA0",
-		2008: "SHELA0",
-		2011: "STIMA0",
-		2012: "MEDIA0",
-		2014: "BON1A0",
-		2015: "BON2A0",
-		2018: "ARM1A0",
-		2019: "ARM2A0",
-		2028: "COLUA0",
-		2035: "BAR1A0",
-		2046: "BROKA0",
-		2048: "AMMOA0",
-		2049: "SBOXA0",
-		3001: "TROOA1",
-		3004: "POSSA1"
+		9: ["SPOSA1"],
+		10: ["SPOSU0"],
+		12: ["SPOSU0"],
+		15: ["PLAYN0"],
+		48: ["ELECA0"],
+		2001: ["SHOTA0"],
+		2002: ["MGUNA0"],
+		2003: ["LAUNA0"],
+		2007: ["CLIPA0"],
+		2008: ["SHELA0"],
+		2011: ["STIMA0"],
+		2012: ["MEDIA0"],
+		2014: ["BON1A0"],
+		2015: ["BON2A0"],
+		2018: ["ARM1A0"],
+		2019: ["ARM2A0"],
+		2028: ["COLUA0"],
+		2035: ["BAR1A0"],
+		2046: ["BROKA0"],
+		2048: ["AMMOA0"],
+		2049: ["SBOXA0"],
+		3001: ["TROOA1"],
+		3004: ["POSSA1"]
 	}
 
 func _init(type, location) -> void:
@@ -37,7 +37,7 @@ func _ready() -> void:
 	var picture = "SPOSD1"
 	
 	if pic_lookup.has(type):
-		picture = pic_lookup[type]
+		picture = pic_lookup[type][0]
 		
 	if type != 11: # deathmatch start
 		create_sprite3d(location, picture)

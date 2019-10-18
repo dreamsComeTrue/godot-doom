@@ -3,14 +3,10 @@ extends MeshInstance
 var animated_flats : Array = []
 var sector : int
 var raycast_id : int
-var vertex1
-var vertex2
-var vertex3
-var flat_height
-var floor_created : bool = false
-var picture : String
-var light : int
 var material = null
+
+var mdt = MeshDataTool.new()
+var pos_offset : float = 0.0
 
 func _init(sector_id : int) -> void:
 	sector = sector_id
@@ -25,24 +21,20 @@ func _init(sector_id : int) -> void:
 	animated_flats.append(["SLIME05", "SLIME06", "SLIME07", "SLIME08"]) # Brown slime
 	animated_flats.append(["SLIME09", "SLIME10", "SLIME11", "SLIME12"]) # Small molten rock 
 	
-func create():
-	for c in get_children():
-		c.queue_free()
-		
-	if floor_created:
-		create_floor_part(vertex1, vertex2, vertex3, flat_height, picture, light)
-	else:
-		create_ceiling_part(vertex1, vertex2, vertex3, flat_height, picture, light)
-
-func create_floor_part(v1, v2, v3, height, picture_name, light_level : int) -> void:
-	floor_created = true
-	vertex1 = v1
-	vertex2 = v2
-	vertex3 = v3
-	flat_height = height
-	picture = picture_name
-	light = light_level
+func move_ceiling(offset):
+	pos_offset += offset
 	
+	mdt.create_from_surface(self.mesh, 0)
+
+	for i in range(mdt.get_vertex_count()):
+		var vertex = mdt.get_vertex(i)
+		vertex.y += offset
+		mdt.set_vertex(i, vertex)
+
+	self.mesh.surface_remove(0)
+	mdt.commit_to_surface(self.mesh)
+	
+func create_floor_part(v1, v2, v3, height, picture_name, light_level : int) -> void:
 	var surface_tool = SurfaceTool.new();
 
 	surface_tool.begin(Mesh.PRIMITIVE_TRIANGLES);
@@ -65,14 +57,6 @@ func create_floor_part(v1, v2, v3, height, picture_name, light_level : int) -> v
 	raycast_id = self.get_child(0).get_instance_id()
 	
 func create_ceiling_part(v1, v2, v3, height, picture_name, light_level : int) -> void:
-	floor_created = false
-	vertex1 = v1
-	vertex2 = v2
-	vertex3 = v3
-	flat_height = height
-	picture = picture_name
-	light = light_level
-	
 	var surface_tool = SurfaceTool.new();
 
 	surface_tool.begin(Mesh.PRIMITIVE_TRIANGLES);
