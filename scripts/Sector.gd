@@ -7,6 +7,8 @@ var ceil_height
 var floor_segments : Array
 var ceil_segments : Array
 var walls: Array
+var polygon_set: Array
+var triangulated_polygon_set: Array
 
 var moving_speed: float = 3.5
 

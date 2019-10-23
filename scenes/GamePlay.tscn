@@ -20,7 +20,6 @@ extents = Vector3( 200000, 0.1, 200000 )
 
 [node name="Spatial" type="Spatial"]
 script = ExtResource( 1 )
-level_name = "E1M2"
 level_scale = 0.04
 ear_cut_path = NodePath("EarCut")
 player_path = NodePath("Player")
