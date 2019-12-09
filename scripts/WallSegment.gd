@@ -1,49 +1,62 @@
 extends Spatial
 
-var id : int
+var line_index : int = -1
 var start_vertex_index : int
 var end_vertex_index : int
 var start_vertex
 var end_vertex
 var floor_height : float
 var ceil_height : float
+var other_floor_height : float
+var other_ceil_height : float
 var light_level : int
-var texture_floor_height : float
-var texture_ceil_height : float
 var floor_texture : String
 var ceil_texture : String
 var upper_texture : String
 var lower_texture : String
 var middle_texture : String
 var line_def_type : int
-var sector : int
-var other_sector : int
-var x_offset : int
-var y_offset : int
+var sector : int = -1
+var other_sector : int = -1
+var x_offset : int = 0
+var y_offset : int = 0
 var two_sided : bool
-var flags : int
-var lower_unpegged
-var upper_unpegged
+var flags : int = 0
+var lower_unpegged : bool = false
+var upper_unpegged : bool = false
 var front_side : bool
-var floor_height_2 : float
-var ceil_height_2 : float
-var front_sector_pointer : Vector2
-var back_sector_pointer : Vector2
 
 var mesh_instance : MeshInstance
 var mdt = MeshDataTool.new()
 var pos_offset : float = 0.0
 
+var floor_index : int = -1
+var middle_index : int = -1
+var ceiling_index : int = -1
+
+var is_door : bool = false
+var is_lift : bool = false
+
+var door_types = [1, 26, 27, 28, 31, 32, 33, 34, 117, 118]
+var lift_types = [62, 88]
+
 func create(duplicate):
+	if line_def_type in door_types:
+		is_door = true
+
+	if line_def_type in lift_types:
+		is_lift = true
+
 	if duplicate != null:
 		if not front_side:
-			if floor_height < floor_height_2:
+			if floor_height < other_floor_height:
 				if floor_texture != "F_SKY1":
 					if lower_texture != "-":
-						_create_wall_part(0, floor_height, texture_floor_height, lower_texture)
+						_create_wall_part(0, floor_height, other_floor_height, lower_texture)
+						floor_index = 0
 
-			if ceil_height > ceil_height_2:
-				var line_def = get_parent().get_linedef(id)
+			if ceil_height > other_ceil_height:
+				var line_def = get_parent().get_linedef(line_index)
 				var tex_right = get_parent().get_sector(get_parent().get_sidedef(line_def.right_sidedef).sector).ceil_texture
 				var tex_left = get_parent().get_sector(get_parent().get_sidedef(line_def.left_sidedef).sector).ceil_texture
 
@@ -51,44 +64,87 @@ func create(duplicate):
 					return
 
 				if upper_texture != "-":
-					_create_wall_part(2, texture_ceil_height, ceil_height, upper_texture)
+					_create_wall_part(2, other_ceil_height, ceil_height, upper_texture)
+
+					if floor_index < 0:
+						ceiling_index = 0
+					else:
+						ceiling_index = 1
+		else:
+			if floor_height < other_floor_height:
+				if floor_texture != "F_SKY1":
+					if lower_texture != "-":
+						_create_wall_part(0, floor_height, other_floor_height, lower_texture)
+						floor_index = 0
+
+			if middle_texture != "-":
+				_create_wall_part(1, other_floor_height, other_ceil_height, middle_texture)
+				middle_index = 1
+
+			if not two_sided and ceil_texture == "F_SKY1":
 				return
-#	if line_def_type in [1, 26, 27, 28, 31, 32, 33, 34, 117, 118]:
-#		return
-	if floor_texture != "F_SKY1":
-		if lower_texture != "-":
-			_create_wall_part(0, floor_height, texture_floor_height, lower_texture)
 
-	if middle_texture != "-":
-		_create_wall_part(1, texture_floor_height, texture_ceil_height, middle_texture)
+			if ceil_height > other_ceil_height:
+				var line_def = get_parent().get_linedef(line_index)
+				var tex_right = get_parent().get_sector(get_parent().get_sidedef(line_def.right_sidedef).sector).ceil_texture
+				var tex_left = get_parent().get_sector(get_parent().get_sidedef(line_def.left_sidedef).sector).ceil_texture
 
-	if not two_sided and ceil_texture == "F_SKY1":
-		return
+				if tex_right == "F_SKY1" and tex_left == "F_SKY1":
+					return
 
-	var line_def = get_parent().get_linedef(id)
-	var tex_right = get_parent().get_sector(get_parent().get_sidedef(line_def.right_sidedef).sector).ceil_texture
-	var tex_left = get_parent().get_sector(get_parent().get_sidedef(line_def.left_sidedef).sector).ceil_texture
+				if upper_texture != "-":
+					_create_wall_part(2, other_ceil_height, ceil_height, upper_texture)
 
-	if tex_right == "F_SKY1" and tex_left == "F_SKY1":
-		return
-
-	if upper_texture != "-":
-		_create_wall_part(2, texture_ceil_height, ceil_height, upper_texture)
+					if floor_index < 0:
+						if middle_index < 0:
+							ceiling_index = 0
+						else:
+							ceiling_index = 2
+					else:
+						ceiling_index = 1
 
 func move_ceiling(offset: float, scale_uv: bool):
+#	if ceiling_index < 0:
+#		return
+
 	if mesh_instance != null:
 		pos_offset += offset
 
 		mdt.create_from_surface(mesh_instance.mesh, 0)
 
 		if scale_uv:
-			var uvs = _get_uvs(1, get_parent().get_picture(middle_texture).image_texture, texture_floor_height, texture_ceil_height + pos_offset)
+			var uvs = _get_uvs(1, get_parent().get_picture(middle_texture).image_texture, other_floor_height + pos_offset, other_floor_height)
 			for i in range(2):
 				var vertex = mdt.get_vertex(i)
 				vertex.y += offset
 				var uv = mdt.get_vertex_uv(i)
 				mdt.set_vertex_uv(i, Vector2(uv.x, uvs[i]))
 				mdt.set_vertex(i, vertex)
+		else:
+			for i in range(mdt.get_vertex_count()):
+				var vertex = mdt.get_vertex(i)
+				vertex.y += offset
+				mdt.set_vertex(i, vertex)
+
+		mesh_instance.get_child(0).free()
+		mesh_instance.mesh.surface_remove(0)
+		mdt.commit_to_surface(mesh_instance.mesh)
+		mesh_instance.create_convex_collision()
+
+func move_floor(offset: float, scale_uv: bool):
+	if mesh_instance != null:
+		pos_offset += offset
+
+		mdt.create_from_surface(mesh_instance.mesh, 0)
+
+		if scale_uv or not front_side:
+			var uvs = _get_uvs(1, get_parent().get_picture(middle_texture).image_texture, other_floor_height + pos_offset, other_ceil_height)
+			for i in range(2):
+				var vertex = mdt.get_vertex(i + 2)
+				vertex.y += offset
+				var uv = mdt.get_vertex_uv(i + 2)
+				mdt.set_vertex_uv(i + 2, Vector2(uv.x, uvs[i + 2]))
+				mdt.set_vertex(i + 2, vertex)
 		else:
 			for i in range(mdt.get_vertex_count()):
 				var vertex = mdt.get_vertex(i)
@@ -185,10 +241,10 @@ func _get_uvs(type: int, texture: Texture, height_low, height_high) -> Array:
 	var offset : float = 0.0
 
 	if two_sided:
-		var higher_ceil = ceil_height if ceil_height > ceil_height_2 else ceil_height_2
-		var lowest_ceil = ceil_height if ceil_height < ceil_height_2 else ceil_height_2
-		var higher_floor = floor_height if floor_height > floor_height_2 else floor_height_2
-		var lowest_floor = floor_height if floor_height < floor_height_2 else floor_height_2
+		var higher_ceil = ceil_height if ceil_height > other_ceil_height else other_ceil_height
+		var lowest_ceil = ceil_height if ceil_height < other_ceil_height else other_ceil_height
+		var higher_floor = floor_height if floor_height > other_floor_height else other_floor_height
+		var lowest_floor = floor_height if floor_height < other_floor_height else other_floor_height
 
 		if type == 0:
 			if lower_unpegged:
