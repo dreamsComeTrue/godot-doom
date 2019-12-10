@@ -4,39 +4,62 @@ var sector_id : int
 var light_level : int
 var floor_height
 var ceil_height
-var floor_segments : Array
-var ceil_segments : Array
-var walls: Array
-var polygon_set: Array
-var triangulated_polygon_set: Array
+var floor_segments : Array = []
+var ceil_segments : Array = []
+var walls: Array = []
+var polygon_set: Array = []
+var triangulated_polygon_set: Array = []
 
 var moving_speed: float = 3.5
+var ceiling_moved_down = false
+var ceiling_moved_up = false
 
-func move_ceiling(move_up: bool, lowest_ceiling: float, delta: float) -> void:
-	for ceil_segment in ceil_segments:
-		if move_up:
-			if ceil_segment.pos_offset < lowest_ceiling:
-				ceil_segment.move_ceiling(moving_speed * delta)
+var floor_moved_down = false
+var floor_moved_up = false
+
+#	Returns bool whether finished animating
+func move_ceiling(move_up: bool, lowest_ceiling: float, delta: float) -> bool:
+	if move_up and not ceiling_moved_up:
+		ceiling_moved_down = false
+
+		for ceil_segment in ceil_segments:
+			if ceil_segment.pos_offset + floor_height < lowest_ceiling:
+				ceil_segment.move_surface(moving_speed * delta, false)
 			else:
-				ceil_segment.move_ceiling(lowest_ceiling - ceil_segment.pos_offset)
-				
-		if not move_up:
+				ceil_segment.move_surface(lowest_ceiling - floor_height, true)
+				ceiling_moved_up = true
+
+		return ceiling_moved_up
+
+	if not move_up and not ceiling_moved_down:
+		ceiling_moved_up = false
+
+		for ceil_segment in ceil_segments:
 			if ceil_segment.pos_offset > 0.0:
-				ceil_segment.move_ceiling(-moving_speed * delta)
+				ceil_segment.move_surface(-moving_speed * delta, false)
 			else:
-				ceil_segment.move_ceiling(0.0 - ceil_segment.pos_offset)
-		
-func move_walls(move_up: bool, lowest_ceiling: float, delta: float, sector_id: int) -> void:
-	for wall_segment in walls:
-		if wall_segment.sector == sector_id or wall_segment.other_sector == sector_id:
-			if move_up:
-				if wall_segment.pos_offset < lowest_ceiling - wall_segment.texture_floor_height:
-					wall_segment.move_ceiling(moving_speed * delta, wall_segment.sector == sector_id)
-				else:
-					wall_segment.move_ceiling(lowest_ceiling - wall_segment.texture_floor_height - wall_segment.pos_offset, wall_segment.sector == sector_id)
-					
-			if not move_up:
-				if wall_segment.pos_offset > 0.0:
-					wall_segment.move_ceiling(-moving_speed * delta, wall_segment.sector == sector_id)
-				else:
-					wall_segment.move_ceiling(0.0 - wall_segment.pos_offset, wall_segment.sector == sector_id)
+				ceil_segment.move_surface(0.0, true)
+				ceiling_moved_down = true
+
+		return ceiling_moved_down
+
+	return true
+
+func move_floor(move_up: bool, lowest_floor: float, delta: float) -> void:
+	if move_up and not floor_moved_up:
+		floor_moved_down = false
+
+		for floor_segment in floor_segments:
+			if floor_segment.pos_offset < 0:
+				floor_segment.move_surface(moving_speed * delta, false)
+			else:
+				floor_moved_up = true
+
+	if not move_up and not floor_moved_down:
+		floor_moved_up = false
+
+		for floor_segment in floor_segments:
+			if floor_segment.pos_offset + floor_height > lowest_floor:
+				floor_segment.move_surface(-moving_speed * delta, false)
+			else:
+				floor_moved_down = true
