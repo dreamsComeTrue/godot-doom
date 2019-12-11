@@ -17,8 +17,8 @@ uv1_scale = Vector3( 1, -1, 1 )
 
 [node name="GameWorld" type="Spatial"]
 script = ExtResource( 1 )
-level_name = "E1M3"
-level_scale = 0.044
+level_name = "E1M4"
+level_scale = 0.045
 ear_cut_path = NodePath("../GameWorld/EarCut")
 player_path = NodePath("../GameWorld/Player")
 

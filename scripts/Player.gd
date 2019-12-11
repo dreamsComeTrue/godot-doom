@@ -50,8 +50,9 @@ func process_input(delta):
 
 	var input_movement_vector = Vector2()
 
-	if Input.is_key_pressed(KEY_Q):
+	if Input.is_action_just_pressed("noclip"):
 		no_clip = not no_clip
+		print(no_clip)
 		no_clip()
 
 	var speed = 5
@@ -69,6 +70,12 @@ func process_input(delta):
 	dir += -cam_xform.basis.z.normalized() * input_movement_vector.y
 	dir += cam_xform.basis.x.normalized() * input_movement_vector.x
 	# ----------------------------------
+
+	if no_clip:
+		vel.y = 0
+
+		if Input.is_action_just_pressed("movement_jump"):
+			vel.y = JUMP_SPEED * 5
 
 	# Jumping
 	if is_on_floor():
